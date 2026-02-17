@@ -332,6 +332,7 @@ setInterval(() => {
     message: taunt,
     ts: now,
   };
+  chatService.storeMessage(msg);
   io.emit('chat:message', msg);
   lastBotChatTime = now;
 }, 30000); // 30초마다 체크

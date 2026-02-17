@@ -103,6 +103,14 @@ class ChatService {
   }
 
   /**
+   * 외부에서 생성된 메시지를 히스토리에 저장 (봇 채팅 등)
+   * @param {object} msg — { id, type, team, nickname, message, ts }
+   */
+  storeMessage(msg) {
+    this._addToHistory(msg);
+  }
+
+  /**
    * 플레이어 연결 해제 시 rate limit 정리
    * @param {string} socketId
    */
