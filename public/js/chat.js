@@ -76,7 +76,12 @@ const Chat = (() => {
     window.addEventListener('mousemove', onResizeMove);
     window.addEventListener('mouseup', onResizeEnd);
 
-    // Socket
+    // Socket — remove old listeners to prevent duplicates on re-join
+    socket.off('chat:message', onMessage);
+    socket.off('chat:error');
+    socket.off('chat:history', onHistory);
+    socket.off('chat:deleted', onDeleted);
+    socket.off('chat:cleared', onCleared);
     socket.on('chat:message', onMessage);
     socket.on('chat:error', () => {});
     socket.on('chat:history', onHistory);

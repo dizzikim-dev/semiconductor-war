@@ -214,6 +214,13 @@ const CELL_BACKDOOR_REDUCTION = 0.2; // 아군 미니언 없을 때 피해 감�
 const CELL_SCORE_PER_SEC = 1;        // 초당 영토 점수 (셀당)
 const CELL_FRIENDLY_MINION_RANGE = 300; // 백도어 판정용 아군 미니언 탐색 범위
 
+// ── 셀 오버히트 (Overheat) ──
+const CELL_OVERHEAT_CHARGE_RATE = 0.12;    // 초당 게이지 충전량 (적 사거리 내)
+const CELL_OVERHEAT_DECAY_RATE = 0.08;     // 초당 게이지 냉각량 (적 없을 때)
+const CELL_OVERHEAT_THRESHOLD = 0.6;       // 이 이상이면 공속 증가 시작
+const CELL_OVERHEAT_MIN_COOLDOWN = 400;    // 오버히트 최대 시 최소 쿨다운 (ms)
+const CELL_OVERHEAT_IDLE_DELAY = 3.0;      // 적 사라진 후 냉각 시작까지 대기 (초)
+
 // ─── 플라즈마 해저드 존 (Plasma Etch Hazard) ───
 const HAZARD_ZONE = {
   WARN_DURATION: 1200,       // 경고 표시 시간 (ms) — 텔레그래프
@@ -364,6 +371,8 @@ module.exports = {
   CELL_CAPTURE_RADIUS, CELL_CAPTURE_TIME, CELL_REBUILD_TIME, CELL_REBUILD_HP_RATIO,
   CELL_WARMUP_TIME, CELL_SHIELD_TIME, CELL_BACKDOOR_REDUCTION, CELL_SCORE_PER_SEC,
   CELL_FRIENDLY_MINION_RANGE,
+  CELL_OVERHEAT_CHARGE_RATE, CELL_OVERHEAT_DECAY_RATE, CELL_OVERHEAT_THRESHOLD,
+  CELL_OVERHEAT_MIN_COOLDOWN, CELL_OVERHEAT_IDLE_DELAY,
   HAZARD_ZONE,
   ROUND_DURATION,
   // Feature Flags

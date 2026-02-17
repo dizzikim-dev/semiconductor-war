@@ -967,6 +967,19 @@ class Game {
 
     cell.currentTargetId = bestTarget ? bestTarget.id : null;
 
+    // ── 오버히트 게이지 ──
+    if (bestTarget) {
+      // 적이 있으면 충전, idle 타이머 리셋
+      cell.overheat = Math.min(1, cell.overheat + C.CELL_OVERHEAT_CHARGE_RATE * dt);
+      cell.idleTimer = 0;
+    } else {
+      // 적이 없으면 대기 후 냉각
+      cell.idleTimer += dt;
+      if (cell.idleTimer >= C.CELL_OVERHEAT_IDLE_DELAY) {
+        cell.overheat = Math.max(0, cell.overheat - C.CELL_OVERHEAT_DECAY_RATE * dt);
+      }
+    }
+
     if (bestTarget && cell.attackCooldown <= 0) {
       const angle = Math.atan2(bestTarget.y - cell.y, bestTarget.x - cell.x);
       const bullet = new Bullet(
@@ -974,7 +987,7 @@ class Game {
         cell.x, cell.y, angle, C.CELL_ATTACK_DAMAGE
       );
       this.bullets.push(bullet);
-      cell.attackCooldown = C.CELL_ATTACK_COOLDOWN;
+      cell.attackCooldown = cell.getAttackCooldown();
     }
   }
 

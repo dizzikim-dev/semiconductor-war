@@ -429,6 +429,10 @@ class CellTurret {
     // 전환 후 보호
     this.warmupTimer = 0;       // 공격 대기
     this.shieldTimer = 0;       // 무적
+
+    // 오버히트 시스템
+    this.overheat = 0;          // 0 ~ 1 게이지
+    this.idleTimer = 0;         // 적이 사라진 후 경과 시간 (초)
   }
 
   reset() {
@@ -442,6 +446,16 @@ class CellTurret {
     this.rebuildProgress = 0;
     this.warmupTimer = 0;
     this.shieldTimer = 0;
+    this.overheat = 0;
+    this.idleTimer = 0;
+  }
+
+  /** 현재 오버히트 수준에 따른 실제 공격 쿨다운 */
+  getAttackCooldown() {
+    if (this.overheat < C.CELL_OVERHEAT_THRESHOLD) return C.CELL_ATTACK_COOLDOWN;
+    // threshold(0.6) ~ 1.0 구간에서 선형 보간: 기본쿨 → 최소쿨
+    const t = (this.overheat - C.CELL_OVERHEAT_THRESHOLD) / (1 - C.CELL_OVERHEAT_THRESHOLD);
+    return C.CELL_ATTACK_COOLDOWN - t * (C.CELL_ATTACK_COOLDOWN - C.CELL_OVERHEAT_MIN_COOLDOWN);
   }
 
   serialize() {
@@ -461,6 +475,7 @@ class CellTurret {
       warmup: this.warmupTimer > 0,
       shield: this.shieldTimer > 0,
       laneOrSector: this.laneOrSector,
+      overheat: +(this.overheat).toFixed(2),
     };
   }
 }

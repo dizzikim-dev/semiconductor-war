@@ -1031,6 +1031,41 @@ const Renderer = (() => {
         ctx.setLineDash([]);
       }
 
+      // ── 오버히트 원형 게이지 ──
+      const oh = cell.overheat || 0;
+      if (oh > 0.01 && !isDestroyed) {
+        const ohRadius = cell.radius + 14;
+        const ohAngle = Math.PI * 2 * oh;
+
+        // 배경 링 (어두운 트랙)
+        ctx.globalAlpha = 0.15;
+        ctx.strokeStyle = '#ff2040';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(0, 0, ohRadius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // 게이지 아크 (12시 방향부터 시계방향)
+        const ohColor = oh < 0.6 ? '#f59e0b' : oh < 0.85 ? '#ff6b00' : '#ff2040';
+        ctx.globalAlpha = 0.6 + 0.3 * oh;
+        ctx.strokeStyle = ohColor;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(0, 0, ohRadius, -Math.PI / 2, -Math.PI / 2 + ohAngle);
+        ctx.stroke();
+
+        // 오버히트 활성 시 외곽 글로우 펄스
+        if (oh >= 0.6) {
+          const pulse = 0.15 + 0.12 * Math.sin(Date.now() / 180);
+          ctx.globalAlpha = pulse;
+          ctx.strokeStyle = '#ff2040';
+          ctx.lineWidth = 8;
+          ctx.beginPath();
+          ctx.arc(0, 0, ohRadius + 3, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+
       // 점령 범위 (파괴/재건 상태일 때)
       if (isDestroyed || isRebuilding) {
         ctx.globalAlpha = 0.08;
@@ -1085,12 +1120,22 @@ const Renderer = (() => {
       ctx.strokeRect(-plateGap / 2 - plateW, -plateH / 2, plateW, plateH);
       ctx.strokeRect(plateGap / 2, -plateH / 2, plateW, plateH);
 
-      // 충전 에너지 글로우 (두 판 사이, HP비례)
+      // 충전 에너지 글로우 (두 판 사이, HP비례 + 오버히트 색상)
       if (!isDestroyed) {
         const hpRatio = cell.hp / cell.maxHp;
+        const oh = cell.overheat || 0;
         const glowH = plateH * 0.7 * hpRatio;
-        ctx.globalAlpha = 0.2 + 0.3 * hpRatio;
-        ctx.fillStyle = teamColor;
+        ctx.globalAlpha = 0.2 + 0.3 * hpRatio + 0.3 * oh;
+        // 오버히트가 올라갈수록 주황→빨강으로 변화
+        if (oh > 0.6) {
+          const t = (oh - 0.6) / 0.4;
+          const r255 = 255;
+          const g = Math.round(140 * (1 - t) + 40 * t);
+          const b = Math.round(30 * (1 - t));
+          ctx.fillStyle = `rgb(${r255},${g},${b})`;
+        } else {
+          ctx.fillStyle = teamColor;
+        }
         ctx.fillRect(-plateGap / 2 + 1, -glowH / 2, plateGap - 2, glowH);
       }
 
@@ -1127,6 +1172,32 @@ const Renderer = (() => {
         ctx.strokeStyle = '#2a3a4e';
         ctx.lineWidth = 0.5;
         ctx.strokeRect(-hpW / 2, -r - 16, hpW, hpH);
+
+        // 오버히트 게이지 바 (HP 바 아래)
+        const oh = cell.overheat || 0;
+        if (oh > 0.01) {
+          const ohY = -r - 9;
+          const ohH = 3;
+          ctx.globalAlpha = 0.6;
+          ctx.fillStyle = '#0a0e17';
+          ctx.fillRect(-hpW / 2, ohY, hpW, ohH);
+          // 게이지 색상: 노랑 → 주황 → 빨강
+          const ohColor = oh < 0.6 ? '#f59e0b' : oh < 0.85 ? '#ff6b00' : '#ff2040';
+          ctx.fillStyle = ohColor;
+          ctx.fillRect(-hpW / 2, ohY, hpW * oh, ohH);
+          ctx.strokeStyle = '#2a3a4e';
+          ctx.lineWidth = 0.5;
+          ctx.strokeRect(-hpW / 2, ohY, hpW, ohH);
+
+          // OVERHEAT 텍스트 (threshold 이상일 때)
+          if (oh >= 0.6) {
+            ctx.globalAlpha = 0.5 + 0.3 * Math.sin(Date.now() / 200);
+            ctx.font = '7px Share Tech Mono';
+            ctx.fillStyle = ohColor;
+            ctx.textAlign = 'center';
+            ctx.fillText('OVERHEAT', 0, ohY - 2);
+          }
+        }
       }
 
       // 점령 진행도 아크
@@ -1162,6 +1233,10 @@ const Renderer = (() => {
         ctx.fillText('REBUILDING', 0, r + 14);
       } else if (cell.warmup) {
         ctx.fillText('WARMING UP', 0, r + 14);
+      } else if ((cell.overheat || 0) >= 0.6) {
+        ctx.globalAlpha = 0.6 + 0.3 * Math.sin(Date.now() / 200);
+        ctx.fillStyle = '#ff2040';
+        ctx.fillText('OVERHEAT', 0, r + 14);
       }
 
       // 셀 ID

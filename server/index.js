@@ -20,6 +20,7 @@ marketDataService.start();
 
 // ── 채팅 서비스 ──
 const chatService = new ChatService();
+let lastPlayerChatTime = Date.now();  // 봇 도발 채팅용: 마지막 플레이어 채팅 시각
 
 // ── 유저 데이터 서비스 ──
 const userDataStore = new UserDataStore();
@@ -215,6 +216,7 @@ io.on('connection', (socket) => {
     const result = chatService.processMessage(socket.id, message, player);
     if (result.ok) {
       io.emit('chat:message', result.msg);
+      lastPlayerChatTime = Date.now(); // 봇 도발 타이머 리셋
     } else {
       socket.emit('chat:error', { reason: result.error });
     }
@@ -261,27 +263,89 @@ setInterval(() => {
   game.update(dt);
 }, C.TICK_INTERVAL);
 
+// ── 봇 도발 채팅 ──
+const BOT_CHAT_IDLE_MS = 5 * 60 * 1000;       // 5분 무채팅 시 봇 발동
+const BOT_CHAT_INTERVAL_MS = 90 * 1000;         // 봇 채팅 간 최소 간격 (90초)
+let lastBotChatTime = 0;
+
+const BOT_TAUNTS = {
+  samsung: [
+    'GAA 기술 앞에 무릎 꿇어라 ㅋㅋ',
+    '2나노 찍으면 게임 끝이다~',
+    'HBM3E로 밀어붙인다!!',
+    '삼성 반도체 No.1 💪',
+    '파운드리 수율 올라간다~ 떨려?',
+    'ㅋㅋㅋ 하이닉스 어디갔어?',
+    'DRAM 시장 점유율 1위는 누구? 🤔',
+    '너네 셀 다 뺏는다 ㅎㅎ',
+    '삼성 미니언 출격~!',
+    'EUV 장비 풀가동 중 🔥',
+  ],
+  skhynix: [
+    'HBM4 나오면 끝이야~',
+    'NVIDIA가 우리 HBM 쓰는 이유가 있지 ㅎ',
+    'SK가 메모리 1등이다!',
+    'HBM 물량 다 확보했다 ㅋㅋ',
+    '1β 공정으로 초격차!',
+    '하이닉스 가즈아~!!',
+    'ㅋㅋ 삼성 수율은 괜찮니?',
+    '셀 점령 순삭이네 ㅎ',
+    'AI 시대엔 HBM이 왕이다 👑',
+    '우리 보스 뺏어간다~',
+  ],
+};
+
+// 플레이어 채팅 시간 추적 (chat:send 성공 시 업데이트)
+const _origChatHandler = null; // 기존 핸들러는 socket 이벤트에서 직접 처리
+
+setInterval(() => {
+  if (!game || !io) return;
+  const now = Date.now();
+
+  // 실제 플레이어가 한 명도 없으면 봇 채팅 안 함
+  const realPlayers = [...game.players.values()].filter(p => !p.isBot);
+  if (realPlayers.length === 0) {
+    lastPlayerChatTime = now; // 리셋
+    return;
+  }
+
+  // 5분 이내 플레이어 채팅이 있었으면 패스
+  if (now - lastPlayerChatTime < BOT_CHAT_IDLE_MS) return;
+  // 봇 채팅 간격 체크
+  if (now - lastBotChatTime < BOT_CHAT_INTERVAL_MS) return;
+
+  // 랜덤 봇 선택
+  const bots = [...game.players.values()].filter(p => p.isBot && p.alive);
+  if (bots.length === 0) return;
+  const bot = bots[Math.floor(Math.random() * bots.length)];
+
+  // 상대 팀 도발 메시지
+  const taunts = BOT_TAUNTS[bot.team];
+  if (!taunts || taunts.length === 0) return;
+  const taunt = taunts[Math.floor(Math.random() * taunts.length)];
+
+  const msg = {
+    id: Date.now(),
+    type: 'player',
+    team: bot.team,
+    nickname: bot.name,
+    message: taunt,
+    ts: now,
+  };
+  io.emit('chat:message', msg);
+  lastBotChatTime = now;
+}, 30000); // 30초마다 체크
+
 // ── 스냅샷 브로드캐스트 (20Hz) ──
 setInterval(() => {
   if (!game) return;
   const snapshot = game.getSnapshot();
 
-  // 게임 이벤트 → 채팅 시스템 메시지
+  // 게임 이벤트 — 관리자 이벤트만 채팅으로 전송 (킬/셀 로그는 킬피드에서 확인)
   if (snapshot.events) {
     for (const evt of snapshot.events) {
-      let sysMsg = null;
-      if (evt.type === 'monster_kill') {
-        sysMsg = `${evt.team === 'samsung' ? 'SAMSUNG' : 'SK HYNIX'} killed ${evt.monsterName} (${evt.buffLabel})`;
-      } else if (evt.type === 'cell_captured') {
-        const teamLabel = evt.team === 'samsung' ? 'SAMSUNG' : 'SK HYNIX';
-        sysMsg = `Cell ${evt.cellId} captured by ${teamLabel}`;
-      } else if (evt.type === 'cell_destroyed') {
-        const teamLabel = evt.team === 'samsung' ? 'SAMSUNG' : 'SK HYNIX';
-        sysMsg = `Cell ${evt.cellId} destroyed by ${teamLabel}`;
-      } else if (evt.type === 'admin_event') {
-        sysMsg = evt.titleKo || evt.title || evt.eventType;
-      }
-      if (sysMsg) {
+      if (evt.type === 'admin_event') {
+        const sysMsg = evt.titleKo || evt.title || evt.eventType;
         const msg = chatService.createSystemMessage(sysMsg);
         io.emit('chat:message', msg);
       }
