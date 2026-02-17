@@ -1,0 +1,26 @@
+{
+  "name": "semiconductor-war",
+  "version": "1.0.0",
+  "description": "웹 기반 실시간 멀티플레이어 탑다운 2D 슈팅 게임 - 삼성 vs SK하이닉스",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js"
+  },
+  "keywords": [
+    "game",
+    "multiplayer",
+    "socket.io"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^5.2.1",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3"
+  },
+  "optionalDependencies": {
+    "yahoo-finance2": "^2.14.0"
+  }
+}

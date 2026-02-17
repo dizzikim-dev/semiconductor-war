@@ -1,0 +1,1559 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Semiconductor War — Admin Panel</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0e17;
+      color: #e0e6ed;
+      font-family: 'Share Tech Mono', monospace;
+      padding: 20px;
+      min-height: 100vh;
+    }
+    h1 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.6rem;
+      color: #ffd700;
+      margin-bottom: 6px;
+    }
+    h2 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1rem;
+      color: #a0aec0;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .header { margin-bottom: 20px; }
+    .header .subtitle { color: #6b7a8d; font-size: 0.8rem; }
+
+    /* Auth */
+    #authPanel {
+      max-width: 360px;
+      margin: 80px auto;
+      text-align: center;
+    }
+    #authPanel input {
+      width: 100%;
+      padding: 12px;
+      background: #141c28;
+      border: 1px solid #2a3a4e;
+      border-radius: 6px;
+      color: #e0e6ed;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 1rem;
+      margin-bottom: 12px;
+      outline: none;
+    }
+    #authPanel input:focus { border-color: #ffd700; }
+    #authPanel button {
+      padding: 10px 32px;
+      background: #ffd700;
+      border: none;
+      border-radius: 6px;
+      color: #0a0e17;
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    #authPanel button:hover { background: #ffed4a; }
+    #authError { color: #ef4444; margin-top: 8px; font-size: 0.8rem; }
+
+    /* Main panel */
+    #mainPanel { display: none; }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .card {
+      background: #141c28;
+      border: 1px solid #2a3a4e;
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .card.full { grid-column: 1 / -1; }
+
+    /* Status */
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(42,58,78,0.3);
+      font-size: 0.8rem;
+    }
+    .status-row:last-child { border-bottom: none; }
+    .status-label { color: #6b7a8d; }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 0.65rem;
+      font-weight: 700;
+    }
+    .badge.open { background: rgba(34,197,94,0.2); color: #22c55e; }
+    .badge.closed { background: rgba(107,122,141,0.2); color: #6b7a8d; }
+    .badge.active { background: rgba(251,191,36,0.2); color: #fbbf24; }
+    .badge.expired { background: rgba(107,122,141,0.2); color: #6b7a8d; }
+    .badge.cancelled { background: rgba(239,68,68,0.2); color: #ef4444; }
+
+    /* Event form */
+    .form-group { margin-bottom: 12px; }
+    .form-group label {
+      display: block;
+      font-size: 0.7rem;
+      color: #6b7a8d;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+    }
+    .form-group select,
+    .form-group input {
+      width: 100%;
+      padding: 8px;
+      background: #0a0e17;
+      border: 1px solid #2a3a4e;
+      border-radius: 4px;
+      color: #e0e6ed;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.85rem;
+      outline: none;
+    }
+    .form-group select:focus,
+    .form-group input:focus { border-color: #ffd700; }
+    .form-row { display: flex; gap: 10px; }
+    .form-row .form-group { flex: 1; }
+    .dynamic-fields { margin-top: 8px; }
+
+    .btn {
+      padding: 8px 24px;
+      border: none;
+      border-radius: 4px;
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 700;
+      font-size: 0.75rem;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .btn-primary { background: #ffd700; color: #0a0e17; }
+    .btn-primary:hover { background: #ffed4a; }
+    .btn-danger { background: #ef4444; color: #fff; }
+    .btn-danger:hover { background: #f87171; }
+    .btn-sm {
+      padding: 4px 12px;
+      font-size: 0.65rem;
+    }
+
+    #eventResult {
+      margin-top: 8px;
+      font-size: 0.8rem;
+      min-height: 20px;
+    }
+    .result-ok { color: #22c55e; }
+    .result-err { color: #ef4444; }
+
+    /* Events list */
+    .event-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(42,58,78,0.3);
+      font-size: 0.8rem;
+    }
+    .event-item:last-child { border-bottom: none; }
+    .event-meta { color: #6b7a8d; font-size: 0.7rem; }
+
+    /* News */
+    .news-item {
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(42,58,78,0.3);
+      font-size: 0.8rem;
+    }
+    .news-item:last-child { border-bottom: none; }
+    .news-corp { color: #ffd700; font-size: 0.7rem; }
+    .empty { color: #4a5568; font-size: 0.8rem; font-style: italic; }
+
+    /* Map buttons */
+    .map-btn-row { display: flex; gap: 10px; margin-top: 10px; }
+    .map-btn-admin {
+      flex: 1;
+      padding: 12px;
+      background: #0a0e17;
+      border: 2px solid #2a3a4e;
+      border-radius: 6px;
+      color: #e0e6ed;
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 700;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+    }
+    .map-btn-admin:hover { border-color: #ffd700; background: rgba(255,215,0,0.05); }
+    .map-btn-admin.active { border-color: #22c55e; background: rgba(34,197,94,0.1); color: #22c55e; }
+    .map-btn-admin .map-sub { display: block; font-family: 'Share Tech Mono', monospace; font-size: 0.65rem; color: #6b7a8d; margin-top: 4px; font-weight: 400; }
+
+    /* News management */
+    .news-custom-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(42,58,78,0.3);
+      font-size: 0.8rem;
+    }
+    .news-custom-item:last-child { border-bottom: none; }
+    .news-add-form { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    .news-add-form input, .news-add-form select {
+      padding: 8px;
+      background: #0a0e17;
+      border: 1px solid #2a3a4e;
+      border-radius: 4px;
+      color: #e0e6ed;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.8rem;
+      outline: none;
+    }
+    .news-add-form input:focus, .news-add-form select:focus { border-color: #ffd700; }
+    .news-add-form input { flex: 2; min-width: 200px; }
+    .news-add-form select { flex: 1; min-width: 120px; }
+    .section-label {
+      font-size: 0.7rem;
+      color: #6b7a8d;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin: 12px 0 6px;
+    }
+
+    /* Chat management */
+    .chat-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(42,58,78,0.3);
+      font-size: 0.8rem;
+    }
+    .chat-item:last-child { border-bottom: none; }
+    .chat-meta { color: #4a5568; font-size: 0.7rem; }
+    .chat-team-sam { color: #5a9bff; font-weight: 700; }
+    .chat-team-skh { color: #ff6b80; font-weight: 700; }
+    .chat-system { color: #ffd700; font-style: italic; font-size: 0.75rem; }
+
+    /* User Management */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .stat-card {
+      background: #0a0e17;
+      border: 1px solid #2a3a4e;
+      border-radius: 6px;
+      padding: 12px;
+      text-align: center;
+    }
+    .stat-card .stat-value {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.4rem;
+      color: #ffd700;
+      display: block;
+    }
+    .stat-card .stat-label {
+      font-size: 0.65rem;
+      color: #6b7a8d;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-top: 4px;
+    }
+    .search-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .search-bar input {
+      flex: 1;
+      padding: 8px 12px;
+      background: #0a0e17;
+      border: 1px solid #2a3a4e;
+      border-radius: 4px;
+      color: #e0e6ed;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.85rem;
+      outline: none;
+    }
+    .search-bar input:focus { border-color: #ffd700; }
+    .search-bar select {
+      padding: 8px;
+      background: #0a0e17;
+      border: 1px solid #2a3a4e;
+      border-radius: 4px;
+      color: #e0e6ed;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.8rem;
+      outline: none;
+    }
+    .user-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+    .user-table th {
+      text-align: left;
+      padding: 8px 6px;
+      border-bottom: 2px solid #2a3a4e;
+      color: #6b7a8d;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .user-table td {
+      padding: 8px 6px;
+      border-bottom: 1px solid rgba(42,58,78,0.3);
+      vertical-align: middle;
+    }
+    .user-table tr:hover td { background: rgba(255,215,0,0.03); }
+    .uuid-short {
+      font-size: 0.7rem;
+      color: #4a5568;
+      font-family: 'Share Tech Mono', monospace;
+    }
+    .nick-list { font-size: 0.75rem; color: #a0aec0; }
+    .pagination {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .pagination button {
+      padding: 4px 12px;
+      background: #0a0e17;
+      border: 1px solid #2a3a4e;
+      border-radius: 4px;
+      color: #e0e6ed;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .pagination button:hover { border-color: #ffd700; }
+    .pagination button:disabled { opacity: 0.3; cursor: not-allowed; }
+    .pagination .page-info { padding: 4px 8px; color: #6b7a8d; font-size: 0.8rem; }
+
+    /* User Detail Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal-content {
+      background: #141c28;
+      border: 1px solid #2a3a4e;
+      border-radius: 8px;
+      padding: 24px;
+      max-width: 700px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .modal-close {
+      float: right;
+      background: none;
+      border: none;
+      color: #6b7a8d;
+      font-size: 1.2rem;
+      cursor: pointer;
+    }
+    .modal-close:hover { color: #ffd700; }
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(42,58,78,0.3);
+      font-size: 0.8rem;
+    }
+    .detail-row:last-child { border-bottom: none; }
+    .session-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.75rem;
+      margin-top: 12px;
+    }
+    .session-table th {
+      text-align: left;
+      padding: 6px 4px;
+      border-bottom: 2px solid #2a3a4e;
+      color: #6b7a8d;
+      font-size: 0.65rem;
+      text-transform: uppercase;
+    }
+    .session-table td {
+      padding: 6px 4px;
+      border-bottom: 1px solid rgba(42,58,78,0.2);
+    }
+
+    /* Refresh indicator */
+    .refresh-bar {
+      height: 2px;
+      background: #ffd700;
+      position: fixed;
+      top: 0;
+      left: 0;
+      animation: refresh-progress 5s linear infinite;
+    }
+    @keyframes refresh-progress {
+      0% { width: 0; }
+      100% { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Auth -->
+  <div id="authPanel">
+    <h1>ADMIN PANEL</h1>
+    <p style="color:#6b7a8d;margin-bottom:24px">Semiconductor War</p>
+    <input type="password" id="passwordInput" placeholder="Admin Password" autofocus>
+    <br>
+    <button onclick="authenticate()">LOGIN</button>
+    <div id="authError"></div>
+  </div>
+
+  <!-- Main -->
+  <div id="mainPanel">
+    <div class="refresh-bar"></div>
+    <div class="header">
+      <h1>SEMICONDUCTOR WAR — ADMIN</h1>
+      <p class="subtitle">Event System &amp; Market Data Monitor</p>
+    </div>
+
+    <div class="grid">
+      <!-- Map Management -->
+      <div class="card full">
+        <h2>Map Management</h2>
+        <div id="gameStatus"><span class="empty">Loading...</span></div>
+        <div class="map-btn-row">
+          <button class="map-btn-admin" id="mapBtn_tribus" onclick="changeMap('map_tribus_circuit')">
+            Tri-Bus Circuit
+            <span class="map-sub">3-Lane · Via Portals · Boss</span>
+          </button>
+          <button class="map-btn-admin" id="mapBtn_wafer" onclick="changeMap('map_wafer_ring')">
+            Wafer Ring Arena
+            <span class="map-sub">Circular · Die Tiles · Events</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Market Status -->
+      <div class="card">
+        <h2>Market Status</h2>
+        <div id="marketStatus"><span class="empty">Loading...</span></div>
+      </div>
+
+      <!-- Provider Status -->
+      <div class="card">
+        <h2>Provider Status</h2>
+        <div id="providerStatus"><span class="empty">Loading...</span></div>
+      </div>
+
+      <!-- Compliance Check -->
+      <div class="card full">
+        <h2>Compliance Check</h2>
+        <div id="complianceCheck"><span class="empty">Loading...</span></div>
+      </div>
+
+      <!-- News Management -->
+      <div class="card full">
+        <h2>News Management</h2>
+        <div class="news-add-form">
+          <input type="text" id="newsTitle" placeholder="뉴스 제목">
+          <select id="newsCorpName">
+            <option value="삼성전자">삼성전자</option>
+            <option value="SK하이닉스">SK하이닉스</option>
+          </select>
+          <select id="newsTeam">
+            <option value="samsung">Samsung</option>
+            <option value="skhynix">SK Hynix</option>
+          </select>
+          <select id="newsType">
+            <option value="custom">Custom</option>
+            <option value="announcement">Announcement</option>
+            <option value="earnings">Earnings</option>
+            <option value="partnership">Partnership</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="addNews()">ADD</button>
+        </div>
+        <div id="newsResult" style="font-size:0.8rem;min-height:16px;margin-bottom:8px"></div>
+        <div class="section-label">Custom News</div>
+        <div id="customNewsList"><span class="empty">No custom news</span></div>
+        <div class="section-label" style="margin-top:16px">Provider News</div>
+        <div id="providerNewsList" style="max-height:200px;overflow-y:auto"><span class="empty">Loading...</span></div>
+      </div>
+
+      <!-- Create Event -->
+      <div class="card full">
+        <h2>Create Event</h2>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Event Type</label>
+            <select id="eventType" onchange="updateDynamicFields()">
+              <option value="BOSS_SPAWN">BOSS_SPAWN</option>
+              <option value="ZONE_MODIFIER">ZONE_MODIFIER</option>
+              <option value="GLOBAL_PARAM">GLOBAL_PARAM</option>
+              <option value="NEWS_TICKER">NEWS_TICKER</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Title</label>
+            <input type="text" id="eventTitle" placeholder="Event title">
+          </div>
+          <div class="form-group">
+            <label>Duration (ms)</label>
+            <input type="number" id="eventDuration" value="60000" min="10000" max="300000">
+          </div>
+        </div>
+        <div id="dynamicFields" class="dynamic-fields"></div>
+        <div style="margin-top:12px">
+          <button class="btn btn-primary" onclick="createEvent()">TRIGGER EVENT</button>
+        </div>
+        <div id="eventResult"></div>
+      </div>
+
+      <!-- Active Events -->
+      <div class="card">
+        <h2>Active Events</h2>
+        <div id="activeEvents"><span class="empty">No active events</span></div>
+      </div>
+
+      <!-- Recent Events -->
+      <div class="card">
+        <h2>Recent Events</h2>
+        <div id="recentEvents"><span class="empty">No recent events</span></div>
+      </div>
+
+      <!-- Chat Management -->
+      <div class="card full">
+        <h2>Chat Management</h2>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <span id="chatCount" style="font-size:0.8rem;color:#6b7a8d">0 messages</span>
+          <button class="btn btn-danger btn-sm" onclick="clearAllChat()">CLEAR ALL</button>
+        </div>
+        <div id="chatList" style="max-height:400px;overflow-y:auto"><span class="empty">Loading...</span></div>
+      </div>
+
+      <!-- User Management -->
+      <div class="card full">
+        <h2>User Management</h2>
+        <div class="stats-grid" id="userStatsGrid">
+          <div class="stat-card"><span class="stat-value" id="statTotalUsers">-</span><span class="stat-label">Total Users</span></div>
+          <div class="stat-card"><span class="stat-value" id="statTodayActive">-</span><span class="stat-label">Today Active</span></div>
+          <div class="stat-card"><span class="stat-value" id="statOnlineNow">-</span><span class="stat-label">Online Now</span></div>
+          <div class="stat-card"><span class="stat-value" id="statTotalSessions">-</span><span class="stat-label">Total Sessions</span></div>
+          <div class="stat-card"><span class="stat-value" id="statAvgPlaytime">-</span><span class="stat-label">Avg Playtime</span></div>
+        </div>
+        <div class="search-bar">
+          <input type="text" id="userSearchInput" placeholder="Search by nickname or UUID..." onkeydown="if(event.key==='Enter')searchUsers()">
+          <select id="userSortSelect" onchange="searchUsers()">
+            <option value="lastSeen">Last Seen</option>
+            <option value="visitCount">Visit Count</option>
+            <option value="totalScore">Score</option>
+            <option value="totalPlaytimeMs">Playtime</option>
+            <option value="firstSeen">First Seen</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="searchUsers()">SEARCH</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="user-table">
+            <thead>
+              <tr>
+                <th>UUID</th>
+                <th>Nicknames</th>
+                <th>Team</th>
+                <th>Visits</th>
+                <th>Score</th>
+                <th>Playtime</th>
+                <th>Last Seen</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="userTableBody">
+              <tr><td colspan="8" class="empty">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination" id="userPagination"></div>
+      </div>
+
+      <!-- User Detail Modal -->
+      <div class="modal-overlay" id="userDetailModal">
+        <div class="modal-content">
+          <button class="modal-close" onclick="closeUserDetail()">&times;</button>
+          <h2 style="margin-bottom:16px">User Detail</h2>
+          <div id="userDetailContent"><span class="empty">Loading...</span></div>
+        </div>
+      </div>
+
+      <!-- Attack Pattern Preview -->
+      <div class="card" style="grid-column:1/-1">
+        <h2>Attack Pattern Preview</h2>
+        <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+          <button class="btn btn-sm" onclick="showPreview('all')" style="background:#ffd700;color:#000">ALL</button>
+          <button class="btn btn-sm" onclick="showPreview('NVIDIA')" style="background:#76b900;color:#000">NVIDIA (spray)</button>
+          <button class="btn btn-sm" onclick="showPreview('Apple')" style="background:#a2aaad;color:#000">Apple (sniper)</button>
+          <button class="btn btn-sm" onclick="showPreview('TSMC')" style="background:#c4001a;color:#fff">TSMC (drone)</button>
+          <button class="btn btn-sm" onclick="showPreview('Google')" style="background:#4285f4;color:#fff">Google (pulse)</button>
+          <button class="btn btn-sm" onclick="showPreview('META')" style="background:#0668e1;color:#fff">META (twin)</button>
+          <span style="border-left:1px solid #2a3a4e;margin:0 4px"></span>
+          <button class="btn btn-sm" onclick="showPreview('resistor')" style="background:#a0aec0;color:#000">Resistor</button>
+          <button class="btn btn-sm" onclick="showPreview('capacitor')" style="background:#fbbf24;color:#000">Capacitor</button>
+          <button class="btn btn-sm" onclick="showPreview('repeater')" style="background:#34d399;color:#000">Repeater</button>
+        </div>
+        <canvas id="previewCanvas" width="900" height="400" style="width:100%;background:#0d1117;border:1px solid #2a3a4e;border-radius:4px"></canvas>
+        <div id="previewInfo" style="margin-top:8px;font-size:0.8rem;color:#6b7a8d"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let adminPassword = '';
+    let refreshTimer = null;
+
+    function authenticate() {
+      adminPassword = document.getElementById('passwordInput').value;
+      fetch('/api/admin/events', {
+        headers: { 'X-Admin-Password': adminPassword },
+      })
+      .then(r => {
+        if (r.status === 401) throw new Error('Wrong password');
+        return r.json();
+      })
+      .then(() => {
+        document.getElementById('authPanel').style.display = 'none';
+        document.getElementById('mainPanel').style.display = 'block';
+        updateDynamicFields();
+        refreshAll();
+        refreshTimer = setInterval(refreshAll, 5000);
+      })
+      .catch(err => {
+        document.getElementById('authError').textContent = err.message;
+      });
+    }
+
+    document.getElementById('passwordInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') authenticate();
+    });
+
+    function api(method, path, body) {
+      const opts = {
+        method,
+        headers: {
+          'X-Admin-Password': adminPassword,
+          'Content-Type': 'application/json',
+        },
+      };
+      if (body) opts.body = JSON.stringify(body);
+      return fetch(path, opts).then(r => r.json());
+    }
+
+    function refreshAll() {
+      refreshGameStatus();
+      refreshMarketStatus();
+      refreshProviderStatus();
+      refreshComplianceCheck();
+      refreshNewsManagement();
+      refreshEvents();
+      refreshChat();
+      refreshUserStats();
+      searchUsers();
+    }
+
+    // Market Status
+    function refreshMarketStatus() {
+      api('GET', '/api/admin/market-status').then(data => {
+        const el = document.getElementById('marketStatus');
+        if (data.error) { el.innerHTML = `<span class="empty">${data.error}</span>`; return; }
+        const isOpen = data.isMarketOpen;
+        const badge = isOpen ? '<span class="badge open">OPEN</span>' : '<span class="badge closed">CLOSED</span>';
+        const provider = data.providerStatus;
+        const qCache = data.quotesCache;
+        const nCache = data.newsCache;
+        el.innerHTML = `
+          <div class="status-row"><span class="status-label">Market</span>${badge}</div>
+          <div class="status-row"><span class="status-label">Poll Interval</span><span>${(data.currentPollInterval / 1000).toFixed(0)}s</span></div>
+          <div class="status-row"><span class="status-label">Quote Cache</span><span>${qCache.hasData ? 'OK' : 'Empty'} (${(qCache.cacheAge / 1000).toFixed(0)}s ago)</span></div>
+          <div class="status-row"><span class="status-label">News Cache</span><span>${nCache.count} items (${(nCache.cacheAge / 1000).toFixed(0)}s ago)</span></div>
+          <div class="status-row"><span class="status-label">Active Provider</span><span>${provider.activeProvider || 'N/A'}</span></div>
+        `;
+      }).catch(() => {});
+    }
+
+    // Provider Status
+    function refreshProviderStatus() {
+      api('GET', '/api/admin/market-status').then(data => {
+        const el = document.getElementById('providerStatus');
+        if (data.error) { el.innerHTML = `<span class="empty">${data.error}</span>`; return; }
+        const ps = data.providerStatus;
+        if (!ps || !ps.providers) {
+          el.innerHTML = '<span class="empty">No provider data</span>';
+          return;
+        }
+        el.innerHTML = ps.providers.map(p => {
+          const statusBadge = p.healthy
+            ? '<span class="badge open">HEALTHY</span>'
+            : '<span class="badge cancelled">FAILED</span>';
+          const failures = p.failures > 0 ? ` (${p.failures} failures)` : '';
+          return `<div class="status-row">
+            <span class="status-label">${esc(p.name)}</span>
+            <span>${statusBadge}${failures}</span>
+          </div>`;
+        }).join('');
+        if (ps.activeProvider) {
+          el.innerHTML += `<div class="status-row" style="margin-top:6px;border-top:1px solid #2a3a4e;padding-top:4px">
+            <span class="status-label">Active</span>
+            <span style="color:#22c55e;font-weight:700">${esc(ps.activeProvider)}</span>
+          </div>`;
+        }
+      }).catch(() => {});
+    }
+
+    // Compliance Check
+    function refreshComplianceCheck() {
+      api('GET', '/api/admin/market-status').then(data => {
+        const el = document.getElementById('complianceCheck');
+        if (data.error) { el.innerHTML = `<span class="empty">${data.error}</span>`; return; }
+        const flags = data.featureFlags || {};
+        const mockMode = flags.USE_MOCK_MARKET_DATA;
+        const liveBuff = flags.ENABLE_LIVE_MARKET_BUFFS;
+        const newsEvents = flags.ENABLE_NEWS_EVENTS;
+
+        const check = (ok, label) => `<span style="color:${ok ? '#22c55e' : '#f59e0b'}">${ok ? 'PASS' : 'WARN'}</span> ${label}`;
+
+        el.innerHTML = `
+          <div class="status-row">
+            <span class="status-label">Mock Mode</span>
+            <span class="badge ${mockMode ? 'active' : 'closed'}">${mockMode ? 'ON (safe)' : 'OFF (live)'}</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Live Buffs</span>
+            <span class="badge ${liveBuff ? 'active' : 'closed'}">${liveBuff ? 'ENABLED' : 'DISABLED'}</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">News Events</span>
+            <span class="badge ${newsEvents ? 'active' : 'closed'}">${newsEvents ? 'ENABLED' : 'DISABLED'}</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Data Delay</span>
+            <span>${check(true, '15min+ delayed (enforced by design)')}</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Disclaimer</span>
+            <span>${check(true, 'KO + EN footer present')}</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Buff Cap</span>
+            <span>${check(true, 'DMG cap: +-10%, SPD cap: +-5%')}</span>
+          </div>
+        `;
+      }).catch(() => {});
+    }
+
+    // Game Status
+    function refreshGameStatus() {
+      api('GET', '/api/admin/game-status').then(data => {
+        const el = document.getElementById('gameStatus');
+        const running = data.running;
+        const mapId = data.mapId || 'N/A';
+        const mapLabel = mapId === 'map_tribus_circuit' ? 'Tri-Bus Circuit'
+          : mapId === 'map_wafer_ring' ? 'Wafer Ring Arena' : mapId;
+        el.innerHTML = `
+          <div class="status-row"><span class="status-label">Status</span><span class="badge ${running ? 'open' : 'closed'}">${running ? 'RUNNING' : 'IDLE'}</span></div>
+          <div class="status-row"><span class="status-label">Current Map</span><span>${esc(mapLabel)}</span></div>
+          <div class="status-row"><span class="status-label">Players</span><span>${data.players || 0}</span></div>
+          <div class="status-row"><span class="status-label">Bots</span><span>${data.bots || 0}</span></div>
+        `;
+        // Highlight active map button
+        const tribusBtn = document.getElementById('mapBtn_tribus');
+        const waferBtn = document.getElementById('mapBtn_wafer');
+        tribusBtn.classList.toggle('active', mapId === 'map_tribus_circuit');
+        waferBtn.classList.toggle('active', mapId === 'map_wafer_ring');
+      }).catch(() => {});
+    }
+
+    function changeMap(mapId) {
+      const mapLabel = mapId === 'map_tribus_circuit' ? 'Tri-Bus Circuit' : 'Wafer Ring Arena';
+      if (!confirm(`맵을 "${mapLabel}"(으)로 변경하시겠습니까?\n현재 진행 중인 게임이 리셋됩니다.`)) return;
+      api('POST', '/api/admin/change-map', { mapId }).then(data => {
+        if (data.ok) {
+          refreshGameStatus();
+        } else {
+          alert('Map change failed: ' + (data.error || 'Unknown error'));
+        }
+      }).catch(err => alert('Map change error: ' + err.message));
+    }
+
+    // News Management
+    function refreshNewsManagement() {
+      api('GET', '/api/admin/news').then(data => {
+        // Custom news
+        const customEl = document.getElementById('customNewsList');
+        const custom = data.custom || [];
+        if (custom.length === 0) {
+          customEl.innerHTML = '<span class="empty">No custom news</span>';
+        } else {
+          customEl.innerHTML = custom.map(n => {
+            const time = new Date(n.createdAt).toLocaleTimeString('ko-KR');
+            return `<div class="news-custom-item">
+              <div>
+                <span class="news-corp">[${esc(n.corpName)}]</span>
+                ${esc(n.title)}
+                <span style="color:#4a5568;font-size:0.7rem;margin-left:8px">${time}</span>
+              </div>
+              <button class="btn btn-danger btn-sm" onclick="deleteNews(${n.id})">DEL</button>
+            </div>`;
+          }).join('');
+        }
+        // Provider news
+        const providerEl = document.getElementById('providerNewsList');
+        const provider = data.provider || [];
+        if (provider.length === 0) {
+          providerEl.innerHTML = '<span class="empty">No provider news</span>';
+        } else {
+          providerEl.innerHTML = provider.slice(0, 10).map(n => {
+            const corp = n.corpName ? `<span class="news-corp">[${esc(n.corpName)}]</span> ` : '';
+            return `<div class="news-item">${corp}${esc(n.title)}</div>`;
+          }).join('');
+        }
+      }).catch(() => {});
+    }
+
+    function addNews() {
+      const title = document.getElementById('newsTitle').value.trim();
+      if (!title) { document.getElementById('newsResult').innerHTML = '<span class="result-err">제목을 입력하세요</span>'; return; }
+      const corpName = document.getElementById('newsCorpName').value;
+      const team = document.getElementById('newsTeam').value;
+      const type = document.getElementById('newsType').value;
+      api('POST', '/api/admin/news', { title, corpName, team, type }).then(data => {
+        const el = document.getElementById('newsResult');
+        if (data.ok) {
+          el.innerHTML = '<span class="result-ok">News added</span>';
+          document.getElementById('newsTitle').value = '';
+          refreshNewsManagement();
+        } else {
+          el.innerHTML = `<span class="result-err">${esc(data.error)}</span>`;
+        }
+        setTimeout(() => { el.innerHTML = ''; }, 3000);
+      }).catch(err => {
+        document.getElementById('newsResult').innerHTML = `<span class="result-err">${err.message}</span>`;
+      });
+    }
+
+    function deleteNews(id) {
+      api('DELETE', `/api/admin/news/${id}`).then(data => {
+        if (data.ok) refreshNewsManagement();
+      });
+    }
+
+    // Events
+    function refreshEvents() {
+      api('GET', '/api/admin/events').then(data => {
+        // Active
+        const activeEl = document.getElementById('activeEvents');
+        const active = data.active || [];
+        if (active.length === 0) {
+          activeEl.innerHTML = '<span class="empty">No active events</span>';
+        } else {
+          activeEl.innerHTML = active.map(e => {
+            const remaining = Math.max(0, Math.ceil((e.expiresAt - Date.now()) / 1000));
+            return `<div class="event-item">
+              <div>
+                <span class="badge active">${e.type}</span> ${esc(e.title)}
+                <div class="event-meta">${remaining}s remaining</div>
+              </div>
+              <button class="btn btn-danger btn-sm" onclick="cancelEvent('${e.id}')">CANCEL</button>
+            </div>`;
+          }).join('');
+        }
+        // Recent
+        const recentEl = document.getElementById('recentEvents');
+        const recent = data.recent || [];
+        if (recent.length === 0) {
+          recentEl.innerHTML = '<span class="empty">No recent events</span>';
+        } else {
+          recentEl.innerHTML = recent.map(e => {
+            const badgeClass = e.status === 'expired' ? 'expired' : e.status === 'cancelled' ? 'cancelled' : 'active';
+            const time = new Date(e.createdAt).toLocaleTimeString('ko-KR');
+            return `<div class="event-item">
+              <div>
+                <span class="badge ${badgeClass}">${e.status}</span> ${esc(e.type)}: ${esc(e.title)}
+                <div class="event-meta">${time}</div>
+              </div>
+            </div>`;
+          }).join('');
+        }
+      }).catch(() => {});
+    }
+
+    function cancelEvent(id) {
+      api('DELETE', `/api/admin/event/${id}`).then(data => {
+        if (data.ok) refreshEvents();
+      });
+    }
+
+    // Dynamic form fields per event type
+    function updateDynamicFields() {
+      const type = document.getElementById('eventType').value;
+      const container = document.getElementById('dynamicFields');
+      let html = '';
+
+      if (type === 'BOSS_SPAWN') {
+        html = `
+          <div class="form-row">
+            <div class="form-group">
+              <label>Monster Type</label>
+              <select id="param_monsterType">
+                <option value="NVIDIA">NVIDIA (DMG+30%)</option>
+                <option value="Apple">Apple (SPD+25%)</option>
+                <option value="TSMC">TSMC (DMG+50%)</option>
+                <option value="Google">Google (HP REGEN)</option>
+                <option value="META">META (ARMOR+20%)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>HP Multiplier</label>
+              <input type="number" id="param_hpMultiplier" value="1.5" min="0.5" max="3" step="0.1">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Position X</label>
+              <input type="number" id="param_posX" value="1200" min="0">
+            </div>
+            <div class="form-group">
+              <label>Position Y</label>
+              <input type="number" id="param_posY" value="800" min="0">
+            </div>
+          </div>`;
+      } else if (type === 'ZONE_MODIFIER') {
+        html = `
+          <div class="form-row">
+            <div class="form-group">
+              <label>Effect</label>
+              <select id="param_effect">
+                <option value="damage_boost">Damage Boost</option>
+                <option value="speed_boost">Speed Boost</option>
+                <option value="heal_zone">Heal Zone</option>
+                <option value="slow_zone">Slow Zone</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Value (0.05~0.25)</label>
+              <input type="number" id="param_value" value="0.15" min="0.05" max="0.25" step="0.01">
+            </div>
+            <div class="form-group">
+              <label>Radius</label>
+              <input type="number" id="param_radius" value="200" min="100" max="400">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Position X</label>
+              <input type="number" id="param_posX" value="1200" min="0">
+            </div>
+            <div class="form-group">
+              <label>Position Y</label>
+              <input type="number" id="param_posY" value="800" min="0">
+            </div>
+            <div class="form-group">
+              <label>Affects Team</label>
+              <select id="param_affectsTeam">
+                <option value="all">All</option>
+                <option value="samsung">Samsung</option>
+                <option value="skhynix">SK Hynix</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Visual Color</label>
+              <input type="color" id="param_visualColor" value="#76b900">
+            </div>
+            <div class="form-group">
+              <label>Custom Label</label>
+              <input type="text" id="param_customLabel" placeholder="Zone label">
+            </div>
+          </div>`;
+      } else if (type === 'GLOBAL_PARAM') {
+        html = `
+          <div class="form-row">
+            <div class="form-group">
+              <label>Parameter</label>
+              <select id="param_parameter">
+                <option value="minionSpawnRate">Minion Spawn Rate</option>
+                <option value="minionSpawnCount">Minion Spawn Count</option>
+                <option value="pickupSpawnRate">Pickup Spawn Rate</option>
+                <option value="monsterHpScale">Monster HP Scale</option>
+                <option value="respawnDelay">Respawn Delay</option>
+                <option value="cellCaptureSpeed">Cell Capture Speed</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Multiplier (0.5~3.0)</label>
+              <input type="number" id="param_multiplier" value="1.5" min="0.5" max="3" step="0.1">
+            </div>
+          </div>`;
+      } else if (type === 'NEWS_TICKER') {
+        html = `
+          <div class="form-row">
+            <div class="form-group">
+              <label>Headline</label>
+              <input type="text" id="param_headline" placeholder="English headline">
+            </div>
+            <div class="form-group">
+              <label>Headline (KO)</label>
+              <input type="text" id="param_headlineKo" placeholder="Korean headline">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Importance</label>
+              <select id="param_importance">
+                <option value="low">Low</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Team</label>
+              <select id="param_team">
+                <option value="">None</option>
+                <option value="samsung">Samsung</option>
+                <option value="skhynix">SK Hynix</option>
+              </select>
+            </div>
+          </div>`;
+      }
+
+      container.innerHTML = html;
+    }
+
+    function createEvent() {
+      const type = document.getElementById('eventType').value;
+      const title = document.getElementById('eventTitle').value || type;
+      const duration = parseInt(document.getElementById('eventDuration').value) || 60000;
+
+      const params = {};
+
+      if (type === 'BOSS_SPAWN') {
+        params.monsterType = val('param_monsterType');
+        params.hpMultiplier = parseFloat(val('param_hpMultiplier')) || 1;
+        params.position = { x: parseInt(val('param_posX')) || 1200, y: parseInt(val('param_posY')) || 800 };
+      } else if (type === 'ZONE_MODIFIER') {
+        params.effect = val('param_effect');
+        params.value = parseFloat(val('param_value')) || 0.15;
+        params.radius = parseInt(val('param_radius')) || 200;
+        params.position = { x: parseInt(val('param_posX')) || 1200, y: parseInt(val('param_posY')) || 800 };
+        params.affectsTeam = val('param_affectsTeam') || 'all';
+        params.visualColor = val('param_visualColor') || '#76b900';
+        params.customLabel = val('param_customLabel') || '';
+      } else if (type === 'GLOBAL_PARAM') {
+        params.parameter = val('param_parameter');
+        params.multiplier = parseFloat(val('param_multiplier')) || 1.5;
+      } else if (type === 'NEWS_TICKER') {
+        params.headline = val('param_headline') || '';
+        params.headlineKo = val('param_headlineKo') || '';
+        params.importance = val('param_importance') || 'medium';
+        params.team = val('param_team') || null;
+      }
+
+      const body = { type, title, duration, params };
+
+      api('POST', '/api/admin/event', body).then(data => {
+        const el = document.getElementById('eventResult');
+        if (data.ok) {
+          el.innerHTML = `<span class="result-ok">Event created: ${esc(data.event.id)}</span>`;
+          refreshEvents();
+        } else {
+          el.innerHTML = `<span class="result-err">${esc(data.error)}${data.details ? ': ' + esc(data.details) : ''}</span>`;
+        }
+        setTimeout(() => { el.innerHTML = ''; }, 5000);
+      }).catch(err => {
+        document.getElementById('eventResult').innerHTML = `<span class="result-err">${err.message}</span>`;
+      });
+    }
+
+    // Chat Management
+    function refreshChat() {
+      api('GET', '/api/admin/chat').then(data => {
+        const el = document.getElementById('chatList');
+        const countEl = document.getElementById('chatCount');
+        const msgs = data.messages || [];
+        countEl.textContent = `${data.total || 0} messages`;
+        if (msgs.length === 0) {
+          el.innerHTML = '<span class="empty">No chat messages</span>';
+          return;
+        }
+        el.innerHTML = msgs.map(m => {
+          const time = new Date(m.ts).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          if (m.type === 'system') {
+            return `<div class="chat-item">
+              <div><span class="chat-meta">${time}</span> <span class="chat-system">[SYSTEM] ${esc(m.message)}</span></div>
+              <button class="btn btn-danger btn-sm" onclick="deleteChat(${m.id})">DEL</button>
+            </div>`;
+          }
+          const teamClass = m.team === 'samsung' ? 'chat-team-sam' : 'chat-team-skh';
+          const teamLabel = m.team === 'samsung' ? 'SAM' : 'SKH';
+          return `<div class="chat-item">
+            <div><span class="chat-meta">${time}</span> <span class="${teamClass}">[${teamLabel}]</span> <strong>${esc(m.nickname)}</strong>: ${esc(m.message)}</div>
+            <button class="btn btn-danger btn-sm" onclick="deleteChat(${m.id})">DEL</button>
+          </div>`;
+        }).join('');
+      }).catch(() => {});
+    }
+
+    function deleteChat(id) {
+      api('DELETE', `/api/admin/chat/${id}`).then(data => {
+        if (data.ok) refreshChat();
+      });
+    }
+
+    function clearAllChat() {
+      if (!confirm('전체 채팅 기록을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;
+      api('DELETE', '/api/admin/chat').then(data => {
+        if (data.ok) refreshChat();
+      });
+    }
+
+    function val(id) {
+      const el = document.getElementById(id);
+      return el ? el.value : '';
+    }
+
+    function esc(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // ── User Management ──
+    let currentUserPage = 1;
+
+    function formatPlaytime(ms) {
+      if (!ms || ms <= 0) return '0s';
+      const s = Math.floor(ms / 1000);
+      if (s < 60) return s + 's';
+      const m = Math.floor(s / 60);
+      if (m < 60) return m + 'm ' + (s % 60) + 's';
+      const h = Math.floor(m / 60);
+      return h + 'h ' + (m % 60) + 'm';
+    }
+
+    function formatDate(ts) {
+      if (!ts) return '-';
+      return new Date(ts).toLocaleString('ko-KR', {
+        month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit',
+      });
+    }
+
+    function refreshUserStats() {
+      api('GET', '/api/admin/users-stats').then(data => {
+        document.getElementById('statTotalUsers').textContent = data.totalUsers || 0;
+        document.getElementById('statTodayActive').textContent = data.todayActive || 0;
+        document.getElementById('statOnlineNow').textContent = data.onlineNow || 0;
+        document.getElementById('statTotalSessions').textContent = data.totalSessions || 0;
+        document.getElementById('statAvgPlaytime').textContent = formatPlaytime(data.avgPlaytimeMs || 0);
+      }).catch(() => {});
+    }
+
+    function searchUsers(page) {
+      if (page) currentUserPage = page;
+      else if (!page) currentUserPage = currentUserPage || 1;
+
+      const q = (document.getElementById('userSearchInput') || {}).value || '';
+      const sort = (document.getElementById('userSortSelect') || {}).value || 'lastSeen';
+      const limit = 15;
+
+      api('GET', `/api/admin/users?q=${encodeURIComponent(q)}&sort=${sort}&page=${currentUserPage}&limit=${limit}`).then(data => {
+        const tbody = document.getElementById('userTableBody');
+        const users = data.users || [];
+
+        if (users.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="8" class="empty">No users found</td></tr>';
+        } else {
+          tbody.innerHTML = users.map(u => {
+            const uuidShort = u.uuid.length > 12 ? u.uuid.slice(0, 8) + '...' : u.uuid;
+            const nicks = (u.nicknames || []).slice(-3).join(', ');
+            const teamBadge = u.lastTeam === 'samsung'
+              ? '<span style="color:#5a9bff">SAM</span>'
+              : u.lastTeam === 'skhynix'
+                ? '<span style="color:#ff6b80">SKH</span>'
+                : '<span style="color:#6b7a8d">-</span>';
+            const pt = formatPlaytime(u.totalPlaytimeMs);
+            const ls = formatDate(u.lastSeen);
+
+            return `<tr>
+              <td><span class="uuid-short" title="${esc(u.uuid)}">${esc(uuidShort)}</span></td>
+              <td><span class="nick-list">${esc(nicks)}</span></td>
+              <td>${teamBadge}</td>
+              <td>${u.visitCount || 0}</td>
+              <td>${u.totalScore || 0}</td>
+              <td>${pt}</td>
+              <td>${ls}</td>
+              <td><button class="btn btn-sm" style="background:#2a3a4e;color:#e0e6ed" onclick="showUserDetail('${esc(u.uuid)}')">DETAIL</button></td>
+            </tr>`;
+          }).join('');
+        }
+
+        // 페이지네이션
+        const pag = document.getElementById('userPagination');
+        const total = data.total || 0;
+        const totalPages = data.totalPages || 1;
+        pag.innerHTML = `
+          <button ${currentUserPage <= 1 ? 'disabled' : ''} onclick="searchUsers(${currentUserPage - 1})">PREV</button>
+          <span class="page-info">${currentUserPage} / ${totalPages} (${total} users)</span>
+          <button ${currentUserPage >= totalPages ? 'disabled' : ''} onclick="searchUsers(${currentUserPage + 1})">NEXT</button>
+        `;
+      }).catch(() => {});
+    }
+
+    function showUserDetail(uuid) {
+      const modal = document.getElementById('userDetailModal');
+      const content = document.getElementById('userDetailContent');
+      content.innerHTML = '<span class="empty">Loading...</span>';
+      modal.classList.add('show');
+
+      api('GET', `/api/admin/users/${encodeURIComponent(uuid)}`).then(u => {
+        if (u.error) { content.innerHTML = `<span class="empty">${esc(u.error)}</span>`; return; }
+
+        const kdRatio = u.totalDeaths > 0 ? (u.totalKills / u.totalDeaths).toFixed(2) : u.totalKills.toFixed(2);
+        const allNicks = (u.nicknames || []).join(', ');
+
+        let sessionsHtml = '';
+        if (u.sessions && u.sessions.length > 0) {
+          const rows = u.sessions.slice().reverse().map(s => {
+            const joined = formatDate(s.joinedAt);
+            const left = formatDate(s.leftAt);
+            const pt = formatPlaytime(s.playtimeMs);
+            const teamBadge = s.team === 'samsung'
+              ? '<span style="color:#5a9bff">SAM</span>'
+              : '<span style="color:#ff6b80">SKH</span>';
+            return `<tr>
+              <td>${joined}</td>
+              <td>${left}</td>
+              <td>${pt}</td>
+              <td>${esc(s.nickname)}</td>
+              <td>${teamBadge}</td>
+              <td>${esc(s.mapId || '-')}</td>
+              <td>${s.kills}/${s.deaths}</td>
+              <td>Lv.${s.level} ${esc(s.className)}</td>
+            </tr>`;
+          }).join('');
+
+          sessionsHtml = `
+            <div class="section-label" style="margin-top:16px">Session History (${u.sessions.length})</div>
+            <div style="overflow-x:auto">
+              <table class="session-table">
+                <thead><tr>
+                  <th>Joined</th><th>Left</th><th>Time</th><th>Nick</th><th>Team</th><th>Map</th><th>K/D</th><th>Class</th>
+                </tr></thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>
+          `;
+        }
+
+        content.innerHTML = `
+          <div class="detail-row"><span class="status-label">UUID</span><span style="font-size:0.75rem;word-break:break-all">${esc(u.uuid)}</span></div>
+          <div class="detail-row"><span class="status-label">Nicknames</span><span>${esc(allNicks)}</span></div>
+          <div class="detail-row"><span class="status-label">Last Team</span><span>${u.lastTeam === 'samsung' ? '<span style="color:#5a9bff">Samsung</span>' : '<span style="color:#ff6b80">SK Hynix</span>'}</span></div>
+          <div class="detail-row"><span class="status-label">Visit Count</span><span>${u.visitCount}</span></div>
+          <div class="detail-row"><span class="status-label">Total Kills</span><span>${u.totalKills}</span></div>
+          <div class="detail-row"><span class="status-label">Total Deaths</span><span>${u.totalDeaths}</span></div>
+          <div class="detail-row"><span class="status-label">K/D Ratio</span><span>${kdRatio}</span></div>
+          <div class="detail-row"><span class="status-label">Total Score</span><span>${u.totalScore}</span></div>
+          <div class="detail-row"><span class="status-label">Total Playtime</span><span>${formatPlaytime(u.totalPlaytimeMs)}</span></div>
+          <div class="detail-row"><span class="status-label">First Seen</span><span>${formatDate(u.firstSeen)}</span></div>
+          <div class="detail-row"><span class="status-label">Last Seen</span><span>${formatDate(u.lastSeen)}</span></div>
+          ${sessionsHtml}
+        `;
+      }).catch(err => {
+        content.innerHTML = `<span class="empty">Error: ${err.message}</span>`;
+      });
+    }
+
+    function closeUserDetail() {
+      document.getElementById('userDetailModal').classList.remove('show');
+    }
+
+    // ESC로 모달 닫기
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeUserDetail();
+    });
+
+    // ── Attack Pattern Preview ──
+    const BOSSES = [
+      { name:'NVIDIA', style:'spray', color:'#76b900', dmg:12, cd:1800, bullets:3, spread:0.4, hp:500, buff:'DMG +30%' },
+      { name:'Apple', style:'sniper', color:'#a2aaad', dmg:30, cd:2500, bulletSpeed:500, hp:400, buff:'SPD +25%' },
+      { name:'TSMC', style:'drone', color:'#c4001a', dmg:8, cd:3000, maxDrones:4, hp:600, buff:'DMG +50%' },
+      { name:'Google', style:'pulse', color:'#4285f4', dmg:20, cd:3500, pulseR:200, hp:550, buff:'HP REGEN' },
+      { name:'META', style:'twin', color:'#0668e1', dmg:10, cd:1200, hp:450, buff:'ARMOR +20%' },
+    ];
+    const CLASSES = [
+      { name:'resistor', color:'#a0aec0', style:'single', dmg:10, cd:350, range:280, speed:500, hp:120, desc:'Single shot projectile' },
+      { name:'capacitor', color:'#fbbf24', style:'orbit', dmg:25, cd:0, range:90, orbCount:3, hp:250, shield:80, desc:'3 orbital orbs + shield' },
+      { name:'repeater', color:'#34d399', style:'single', dmg:7, cd:200, range:280, speed:600, hp:90, desc:'Fast dual projectiles' },
+    ];
+
+    let previewAnim = null;
+    let previewFilter = 'all';
+
+    function showPreview(filter) {
+      previewFilter = filter;
+      if (previewAnim) cancelAnimationFrame(previewAnim);
+      runPreview();
+    }
+
+    function runPreview() {
+      const cvs = document.getElementById('previewCanvas');
+      if (!cvs) return;
+      const ctx = cvs.getContext('2d');
+      const W = cvs.width, H = cvs.height;
+
+      // 표시할 엔티티 결정
+      let entities = [];
+      const isBoss = BOSSES.find(b => b.name === previewFilter);
+      const isClass = CLASSES.find(c => c.name === previewFilter);
+      if (isBoss) entities = [{ type:'boss', data:isBoss }];
+      else if (isClass) entities = [{ type:'class', data:isClass }];
+      else {
+        // all
+        BOSSES.forEach(b => entities.push({ type:'boss', data:b }));
+        CLASSES.forEach(c => entities.push({ type:'class', data:c }));
+      }
+
+      // 엔티티별 위치 할당
+      const count = entities.length;
+      const cols = Math.min(count, count <= 3 ? count : Math.ceil(count / 2));
+      const rows = Math.ceil(count / cols);
+      const cellW = W / cols, cellH = H / rows;
+      entities.forEach((e, i) => {
+        e.cx = (i % cols) * cellW + cellW / 2;
+        e.cy = Math.floor(i / cols) * cellH + cellH / 2;
+      });
+
+      // 애니메이션 상태
+      const bullets = [];
+      const drones = [];
+      const pulses = [];
+      const orbitAngles = {};
+      let lastTime = performance.now();
+      const cooldowns = {};
+
+      function frame(now) {
+        const dt = Math.min((now - lastTime) / 1000, 0.1);
+        lastTime = now;
+        ctx.clearRect(0, 0, W, H);
+
+        // 그리드
+        ctx.strokeStyle = '#1a2030';
+        ctx.lineWidth = 0.5;
+        for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+        for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+        // 총알 업데이트
+        for (const b of bullets) {
+          b.x += Math.cos(b.angle) * b.speed * dt;
+          b.y += Math.sin(b.angle) * b.speed * dt;
+          b.life -= dt;
+        }
+        bullets.splice(0, bullets.length, ...bullets.filter(b => b.life > 0 && b.x > 0 && b.x < W && b.y > 0 && b.y < H));
+
+        // 드론 업데이트
+        for (const d of drones) {
+          d.angle += 1.5 * dt;
+          d.x = d.cx + Math.cos(d.angle) * d.orbitR;
+          d.y = d.cy + Math.sin(d.angle) * d.orbitR;
+          d.life -= dt;
+        }
+        drones.splice(0, drones.length, ...drones.filter(d => d.life > 0));
+
+        // 펄스 업데이트
+        for (const p of pulses) { p.r += 300 * dt; p.alpha -= 1.5 * dt; }
+        pulses.splice(0, pulses.length, ...pulses.filter(p => p.alpha > 0));
+
+        const t = now / 1000;
+        for (const e of entities) {
+          const { cx, cy, type, data } = e;
+          const key = data.name;
+          if (!cooldowns[key]) cooldowns[key] = 0;
+          cooldowns[key] -= dt * 1000;
+
+          // 사거리 원
+          ctx.globalAlpha = 0.08;
+          ctx.fillStyle = data.color;
+          ctx.beginPath();
+          const rangeR = type === 'boss' ? 120 : (data.range || 90);
+          ctx.arc(cx, cy, rangeR, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+
+          if (type === 'boss') {
+            const r = 28;
+            ctx.save();
+            ctx.translate(cx, cy);
+            const aim = t * 0.8;
+            ctx.rotate(aim);
+            ctx.fillStyle = data.color;
+            ctx.globalAlpha = 0.85;
+
+            if (data.style === 'spray') {
+              ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fill();
+              ctx.globalAlpha = 1;
+              for (let i = -1; i <= 1; i++) { ctx.save(); ctx.rotate(i*0.4); ctx.fillRect(r*0.3,-3,r*0.8,6); ctx.restore(); }
+            } else if (data.style === 'sniper') {
+              ctx.beginPath(); ctx.arc(0, 0, r*0.85, 0, Math.PI*2); ctx.fill();
+              ctx.globalAlpha = 1; ctx.fillRect(r*0.2,-4,r*1.2,8);
+            } else if (data.style === 'drone') {
+              const s = r*0.75; ctx.fillRect(-s,-s,s*2,s*2);
+              ctx.globalAlpha = 0.5; ctx.fillStyle = '#fff'; ctx.fillRect(-s*0.4,-s*0.4,s*0.8,s*0.8);
+            } else if (data.style === 'pulse') {
+              ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fill();
+            } else if (data.style === 'twin') {
+              ctx.beginPath(); ctx.arc(0, 0, r*0.85, 0, Math.PI*2); ctx.fill();
+              ctx.globalAlpha = 1; ctx.fillRect(r*0.3,-9,r*0.7,6); ctx.fillRect(r*0.3,3,r*0.7,6);
+            }
+            ctx.restore();
+            ctx.globalAlpha = 1;
+
+            // 공격 시뮬레이션
+            if (cooldowns[key] <= 0) {
+              cooldowns[key] = data.cd;
+              const a = t * 0.8;
+              if (data.style === 'spray') {
+                for (let i = -1; i <= 1; i++) bullets.push({ x:cx, y:cy, angle:a+i*data.spread, speed:300, life:1.5, color:data.color, r:5 });
+              } else if (data.style === 'sniper') {
+                bullets.push({ x:cx, y:cy, angle:a, speed:data.bulletSpeed||500, life:1.2, color:data.color, r:7 });
+              } else if (data.style === 'drone') {
+                if (drones.filter(d => d.color === data.color).length < data.maxDrones) {
+                  drones.push({ cx, cy, x:cx, y:cy, angle:Math.random()*Math.PI*2, orbitR:50+Math.random()*30, life:4, color:data.color, r:8 });
+                }
+              } else if (data.style === 'pulse') {
+                pulses.push({ x:cx, y:cy, r:0, maxR:data.pulseR||200, alpha:0.6, color:data.color });
+              } else if (data.style === 'twin') {
+                const perp = a + Math.PI/2;
+                for (const s of [-1,1]) bullets.push({ x:cx+Math.cos(perp)*8*s, y:cy+Math.sin(perp)*8*s, angle:a, speed:300, life:1.5, color:data.color, r:5 });
+              }
+            }
+          } else {
+            // 클래스 캐릭터
+            const r = 18;
+            ctx.save(); ctx.translate(cx, cy);
+            const aim = t * 0.6;
+
+            if (data.style === 'orbit') {
+              // 캐패시터
+              ctx.fillStyle = data.color; ctx.globalAlpha = 0.85;
+              ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fill();
+              // 보호막 링
+              ctx.globalAlpha = 0.3; ctx.strokeStyle = '#60a5fa'; ctx.lineWidth = 3;
+              ctx.beginPath(); ctx.arc(0, 0, r + 6, 0, Math.PI*2); ctx.stroke();
+              // 오비탈
+              ctx.globalAlpha = 1;
+              if (!orbitAngles[key]) orbitAngles[key] = 0;
+              orbitAngles[key] += 2.8 * dt;
+              for (let i = 0; i < (data.orbCount||3); i++) {
+                const oa = orbitAngles[key] + (Math.PI*2/3)*i;
+                const ox = Math.cos(oa) * (data.range||90);
+                const oy = Math.sin(oa) * (data.range||90);
+                ctx.fillStyle = data.color;
+                ctx.beginPath(); ctx.arc(ox, oy, 8, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+              }
+            } else {
+              // resistor / repeater
+              ctx.rotate(aim);
+              ctx.fillStyle = data.color; ctx.globalAlpha = 0.85;
+              ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(-r*0.7, -r*0.7); ctx.lineTo(-r*0.7, r*0.7); ctx.closePath(); ctx.fill();
+              ctx.globalAlpha = 1;
+
+              if (cooldowns[key] <= 0) {
+                cooldowns[key] = data.cd;
+                const bCount = data.name === 'repeater' ? 2 : 1;
+                for (let i = 0; i < bCount; i++) {
+                  const spread = bCount > 1 ? (i - 0.5) * 0.1 : 0;
+                  bullets.push({ x:cx, y:cy, angle:aim+spread, speed:data.speed||500, life:1.2, color:data.color, r:4 });
+                }
+              }
+            }
+            ctx.restore();
+            ctx.globalAlpha = 1;
+          }
+
+          // 라벨
+          ctx.font = 'bold 11px Orbitron';
+          ctx.fillStyle = data.color;
+          ctx.textAlign = 'center';
+          ctx.fillText(data.name.toUpperCase(), cx, cy - 42);
+          ctx.font = '9px Share Tech Mono';
+          ctx.fillStyle = '#6b7a8d';
+          if (type === 'boss') {
+            ctx.fillText(data.style + ' | DMG ' + data.dmg + ' | CD ' + data.cd + 'ms', cx, cy + 42);
+            ctx.fillText('HP ' + data.hp + ' | ' + data.buff, cx, cy + 54);
+          } else {
+            ctx.fillText(data.desc, cx, cy + 42);
+            ctx.fillText('HP ' + data.hp + ' | DMG ' + data.dmg + ' | CD ' + data.cd + 'ms', cx, cy + 54);
+          }
+        }
+
+        // 총알 그리기
+        for (const b of bullets) {
+          ctx.globalAlpha = 0.9;
+          ctx.fillStyle = b.color;
+          ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
+          ctx.globalAlpha = 0.3;
+          ctx.beginPath(); ctx.arc(b.x, b.y, b.r*2, 0, Math.PI*2); ctx.fill();
+        }
+        // 드론 그리기
+        for (const d of drones) {
+          ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.angle);
+          ctx.fillStyle = d.color; ctx.globalAlpha = 0.8;
+          ctx.beginPath(); ctx.moveTo(d.r,0); ctx.lineTo(-d.r*0.7,-d.r*0.7); ctx.lineTo(-d.r*0.7,d.r*0.7); ctx.closePath(); ctx.fill();
+          ctx.restore();
+        }
+        // 펄스 그리기
+        for (const p of pulses) {
+          ctx.globalAlpha = p.alpha * 0.4;
+          ctx.fillStyle = p.color;
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+          ctx.globalAlpha = p.alpha;
+          ctx.strokeStyle = p.color; ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+
+        previewAnim = requestAnimationFrame(frame);
+      }
+      previewAnim = requestAnimationFrame(frame);
+
+      // 정보 텍스트
+      const info = document.getElementById('previewInfo');
+      if (info) {
+        if (previewFilter === 'all') info.textContent = 'All bosses and player classes';
+        else if (isBoss) info.textContent = isBoss.name + ' — ' + isBoss.style + ' attack | ' + isBoss.buff;
+        else if (isClass) info.textContent = isClass.name + ' — ' + isClass.desc;
+      }
+    }
+  </script>
+</body>
+</html>

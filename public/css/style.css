@@ -1,0 +1,1182 @@
+/* ─── Reset & Base ─── */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0a0e17;
+  color: #e0e6ed;
+  font-family: 'Share Tech Mono', monospace;
+  overflow: hidden;
+  cursor: default;
+}
+
+/* ─── 시작 화면 ─── */
+#startScreen {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at center, #0f1923 0%, #060a10 100%);
+  z-index: 100;
+}
+.start-container {
+  text-align: center;
+  max-width: 480px;
+  padding: 40px;
+}
+.game-title {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 900;
+  font-size: 3.5rem;
+  line-height: 1.1;
+  color: #e0e6ed;
+  text-shadow: 0 0 20px rgba(30,100,255,0.5), 0 0 40px rgba(255,50,80,0.3);
+  margin-bottom: 8px;
+}
+.game-title span {
+  font-size: 5rem;
+  background: linear-gradient(90deg, #1e64ff, #ff3250);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.game-subtitle {
+  color: #6b7a8d;
+  font-size: 0.9rem;
+  margin-bottom: 32px;
+}
+
+.input-group {
+  margin-bottom: 24px;
+  text-align: left;
+}
+.input-group label {
+  display: block;
+  font-size: 0.75rem;
+  color: #6b7a8d;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 6px;
+}
+.input-group input {
+  width: 100%;
+  padding: 12px 16px;
+  background: #141c28;
+  border: 1px solid #2a3a4e;
+  border-radius: 6px;
+  color: #e0e6ed;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.input-group input:focus {
+  border-color: #1e64ff;
+  box-shadow: 0 0 10px rgba(30,100,255,0.2);
+}
+
+.team-select { margin-bottom: 28px; text-align: left; }
+.team-select > label {
+  display: block;
+  font-size: 0.75rem;
+  color: #6b7a8d;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+}
+.team-buttons { display: flex; gap: 12px; }
+.team-btn {
+  flex: 1;
+  padding: 16px;
+  background: #141c28;
+  border: 2px solid #2a3a4e;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+.team-btn .team-name {
+  display: block;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  margin-bottom: 4px;
+}
+.team-btn .team-desc {
+  display: block;
+  font-size: 0.7rem;
+  color: #6b7a8d;
+}
+.team-btn.samsung .team-name { color: #1e64ff; }
+.team-btn.skhynix .team-name { color: #ff3250; }
+.team-btn.samsung.selected { border-color: #1e64ff; background: rgba(30,100,255,0.1); }
+.team-btn.skhynix.selected { border-color: #ff3250; background: rgba(255,50,80,0.1); }
+.team-btn:hover { transform: translateY(-2px); }
+
+.play-btn {
+  display: inline-block;
+  padding: 14px 48px;
+  background: linear-gradient(135deg, #1e64ff, #3a8bff);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+.play-btn:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(30,100,255,0.4); }
+.controls-hint {
+  margin-top: 16px;
+  font-size: 0.75rem;
+  color: #4a5568;
+}
+
+/* ─── Admin Link ─── */
+.admin-link {
+  position: absolute;
+  bottom: 24px;
+  right: 28px;
+  color: #2a3a4e;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.7rem;
+  text-decoration: none;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  transition: color 0.2s;
+}
+.admin-link:hover { color: #ffd700; }
+
+/* ─── HUD 맵 이름 ─── */
+#hudMapName {
+  background: rgba(10,14,23,0.85);
+  border: 1px solid #2a3a4e;
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-size: 0.7rem;
+  color: #6b7a8d;
+}
+
+/* ─── Zone 경고 ─── */
+#hudZoneWarn {
+  position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%);
+  background: rgba(255,50,80,0.2);
+  border: 1px solid #ff3250;
+  border-radius: 4px;
+  padding: 8px 20px;
+  font-size: 0.85rem;
+  color: #ff6b80;
+  animation: blink 1s infinite;
+}
+
+/* ─── 캔버스 ─── */
+#gameCanvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  background: #0a0e17;
+  touch-action: none; /* 모바일 브라우저 제스처 방지 */
+}
+
+/* ─── HUD ─── */
+#hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+@keyframes blink { 50% { opacity: 0.3; } }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+#hudTop {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 20px; align-items: center;
+}
+#hudTimer, #hudScore {
+  background: rgba(10,14,23,0.85);
+  border: 1px solid #2a3a4e;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.85rem;
+}
+
+#hudKillFeed {
+  position: absolute; top: 280px; left: 20px;
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 0.75rem;
+}
+.kill-entry {
+  background: rgba(10,14,23,0.8);
+  padding: 4px 10px;
+  border-radius: 3px;
+  animation: fadeOut 4s forwards;
+}
+@keyframes fadeOut { 80% { opacity: 1; } 100% { opacity: 0; } }
+
+#hudLeaderboard {
+  position: absolute; left: 20px; top: 60px;
+  background: rgba(10,14,23,0.85);
+  border: 1px solid #2a3a4e;
+  border-radius: 4px;
+  padding: 10px 14px;
+  font-size: 0.75rem;
+  min-width: 180px;
+}
+.lb-header {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.7rem;
+  color: #6b7a8d;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.lb-row { display: flex; justify-content: space-between; padding: 2px 0; }
+.lb-row.samsung { color: #5a9bff; }
+.lb-row.skhynix { color: #ff6b80; }
+.lb-row.self { font-weight: bold; }
+
+/* ─── 사망 화면 ─── */
+#deathScreen {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(10,5,5,0.85);
+  z-index: 50;
+}
+.death-container {
+  text-align: center;
+}
+.death-container h2 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 2.5rem;
+  color: #ff3250;
+  margin-bottom: 12px;
+  text-shadow: 0 0 20px rgba(255,50,80,0.5);
+}
+.death-container p { color: #8a95a5; margin-bottom: 8px; }
+.home-btn {
+  display: inline-block;
+  padding: 10px 32px;
+  margin-top: 12px;
+  background: transparent;
+  border: 1px solid #4a5568;
+  border-radius: 6px;
+  color: #8a95a5;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 1px;
+}
+.home-btn:hover { border-color: #e0e6ed; color: #e0e6ed; }
+
+/* ─── 라운드 종료 ─── */
+#roundEndScreen {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(10,14,23,0.9);
+  z-index: 60;
+}
+.round-end-container {
+  text-align: center;
+  max-width: 500px;
+}
+.round-end-container h2 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 2rem;
+  margin-bottom: 20px;
+}
+#roundStats {
+  margin-bottom: 24px;
+  font-size: 1rem;
+  line-height: 1.8;
+}
+
+/* ─── 진화 선택 오버레이 ─── */
+#evolveOverlay {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(10,14,23,0.85);
+  z-index: 45;
+  pointer-events: auto;
+}
+.evolve-container {
+  text-align: center;
+  max-width: 540px;
+  padding: 32px;
+}
+.evolve-title {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 900;
+  font-size: 2rem;
+  color: #fbbf24;
+  text-shadow: 0 0 20px rgba(251,191,36,0.4);
+  margin-bottom: 8px;
+}
+.evolve-subtitle {
+  color: #6b7a8d;
+  font-size: 0.85rem;
+  margin-bottom: 24px;
+}
+.evolve-buttons {
+  display: flex; gap: 16px;
+}
+.evolve-btn {
+  flex: 1;
+  padding: 20px 16px;
+  background: #141c28;
+  border: 2px solid #2a3a4e;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+  color: #e0e6ed;
+  font-family: 'Share Tech Mono', monospace;
+}
+.evolve-btn:hover {
+  transform: translateY(-3px);
+}
+.evolve-btn .evolve-class-name {
+  display: block;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+  margin-bottom: 8px;
+}
+.evolve-btn .evolve-class-icon {
+  display: block;
+  font-size: 2rem;
+  margin-bottom: 8px;
+}
+.evolve-btn .evolve-class-desc {
+  display: block;
+  font-size: 0.75rem;
+  color: #6b7a8d;
+  margin-bottom: 6px;
+}
+.evolve-btn .evolve-class-stats {
+  display: block;
+  font-size: 0.7rem;
+  color: #4a5568;
+}
+.capacitor-btn:hover {
+  border-color: #fbbf24;
+  background: rgba(251,191,36,0.1);
+}
+.capacitor-btn .evolve-class-name { color: #fbbf24; }
+.capacitor-btn .evolve-class-icon { color: #fbbf24; }
+.repeater-btn:hover {
+  border-color: #34d399;
+  background: rgba(52,211,153,0.1);
+}
+.repeater-btn .evolve-class-name { color: #34d399; }
+.repeater-btn .evolve-class-icon { color: #34d399; }
+
+/* ─── Disclaimer ─── */
+#hudDisclaimer {
+  position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%);
+  font-size: 10px;
+  color: rgba(107,122,141,0.6);
+  text-align: center;
+  max-width: 500px;
+  line-height: 1.3;
+}
+
+/* ═══════════════════════════════════════════════
+   Community Hub — Right panel (Combat / Community)
+   ═══════════════════════════════════════════════ */
+#communityHub {
+  position: fixed;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(10, 14, 23, 0.94);
+  border: 1px solid #2a3a4e;
+  border-radius: 8px;
+  overflow: hidden;
+  z-index: 12;
+  pointer-events: auto;
+  transition: width 0.25s ease, top 0.25s ease, bottom 0.25s ease;
+}
+#communityHub.hidden { display: none; }
+
+/* ── Combat Mode (compact) ── */
+#communityHub.hub-combat {
+  top: 60px;
+  bottom: auto;
+  width: 320px;
+}
+/* ── Community Mode (expanded, full-height) ── */
+#communityHub.hub-community {
+  top: 10px;
+  bottom: 10px;
+  width: 440px;
+}
+
+/* ── Resize Handle ── */
+.hub-resize-handle {
+  position: absolute;
+  left: -3px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 2;
+  background: transparent;
+  transition: background 0.2s;
+}
+.hub-community .hub-resize-handle:hover { background: rgba(90, 155, 255, 0.35); }
+.hub-combat .hub-resize-handle { display: none; }
+
+/* ── Stock Panel (inside hub) ── */
+#communityHub #hudStockPanel {
+  padding: 10px 14px;
+  border-bottom: 1px solid #1e2a3a;
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  text-align: right;
+}
+#hudStockPanel .stock-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 8px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.65rem; color: #6b7a8d;
+  letter-spacing: 1px; text-transform: uppercase;
+}
+#hudStockPanel .stock-badge { padding: 2px 6px; border-radius: 3px; font-size: 0.6rem; font-weight: 700; }
+#hudStockPanel .stock-badge.open { background: rgba(34,197,94,0.2); color: #22c55e; border: 1px solid #22c55e; }
+#hudStockPanel .stock-badge.closed { background: rgba(107,122,141,0.2); color: #6b7a8d; border: 1px solid #4a5568; }
+#hudStockPanel .stock-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 4px 0; border-bottom: 1px solid rgba(42,58,78,0.4);
+}
+#hudStockPanel .stock-row:last-child { border-bottom: none; }
+#hudStockPanel .stock-name { font-family: 'Orbitron', sans-serif; font-size: 0.65rem; font-weight: 700; }
+#hudStockPanel .stock-price { font-size: 0.7rem; color: #e0e6ed; }
+#hudStockPanel .stock-change { font-size: 0.65rem; font-weight: 700; }
+#hudStockPanel .stock-change.positive { color: #22c55e; }
+#hudStockPanel .stock-change.negative { color: #ef4444; }
+#hudStockPanel .stock-change.neutral  { color: #6b7a8d; }
+#hudStockPanel .stock-buff { font-size: 0.6rem; font-weight: 700; margin-top: 2px; }
+#hudStockPanel .stock-loading { color: #4a5568; font-size: 0.7rem; text-align: center; padding: 6px 0; }
+
+/* ── Tab Bar ── */
+.hub-tab-bar {
+  display: flex;
+  border-bottom: 1px solid #1e2a3a;
+  flex-shrink: 0;
+}
+/* tab bar visible in both modes */
+.hub-tab {
+  flex: 1;
+  padding: 8px 0;
+  background: transparent;
+  border: none;
+  color: #4a5568;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: color 0.2s;
+  border-bottom: 2px solid transparent;
+}
+.hub-tab:hover { color: #a0aec0; }
+.hub-tab.active { color: #5a9bff; border-bottom-color: #5a9bff; }
+
+/* ── Tab Content ── */
+.hub-tab-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.hub-tab-content.hidden { display: none; }
+
+/* ── Chat Messages ── */
+.hub-messages {
+  overflow-y: auto;
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: #c9d1d9;
+}
+/* Combat: compact scrollable */
+.hub-combat .hub-messages {
+  max-height: 160px;
+  overflow-y: auto;
+}
+/* Community: fill space */
+.hub-community .hub-messages {
+  flex: 1;
+  min-height: 200px;
+  overflow-y: auto;
+}
+.hub-messages::-webkit-scrollbar { width: 4px; }
+.hub-messages::-webkit-scrollbar-track { background: transparent; }
+.hub-messages::-webkit-scrollbar-thumb { background: #2a3a4e; border-radius: 2px; }
+.hub-messages::-webkit-scrollbar-thumb:hover { background: #3a4a5e; }
+
+/* Message lines */
+.hub-msg { padding: 3px 0; word-break: break-word; }
+.hub-msg-system { color: #ffd700; font-style: italic; font-size: 0.75rem; }
+.hub-ts { color: #4a5568; font-size: 0.7rem; }
+.hub-team { font-weight: 700; font-size: 0.75rem; }
+.hub-nick { font-weight: 700; }
+.hub-text { color: #d1d5db; }
+
+/* ── Input Row ── */
+.hub-input-row {
+  display: flex;
+  padding: 8px 10px;
+  gap: 6px;
+  border-top: 1px solid #1e2a3a;
+  flex-shrink: 0;
+}
+/* input always visible in both modes */
+.hub-chat-input {
+  flex: 1;
+  background: #0d1117;
+  border: 1px solid #2a3a4e;
+  border-radius: 4px;
+  padding: 8px 10px;
+  color: #e6edf3;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.hub-chat-input:focus { border-color: #5a9bff; box-shadow: 0 0 8px rgba(90,155,255,0.15); }
+.hub-chat-input::placeholder { color: #4a5568; }
+.hub-send-btn {
+  background: #1e64ff;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 14px;
+  color: white;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.hub-send-btn:hover { background: #3a7bff; }
+
+/* ── News (inside hub NEWS tab) ── */
+.hub-news-body {
+  padding: 10px 12px;
+  overflow-y: auto;
+  flex: 1;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+/* Combat: compact scrollable */
+.hub-combat .hub-news-body {
+  max-height: 160px;
+  overflow-y: auto;
+}
+/* Community: fill space */
+.hub-community .hub-news-body {
+  flex: 1;
+  min-height: 200px;
+  overflow-y: auto;
+}
+.hub-news-body::-webkit-scrollbar { width: 4px; }
+.hub-news-body::-webkit-scrollbar-track { background: transparent; }
+.hub-news-body::-webkit-scrollbar-thumb { background: #2a3a4e; border-radius: 2px; }
+.news-item {
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(42,58,78,0.3);
+  color: #a0aec0;
+  line-height: 1.4;
+  word-break: keep-all;
+}
+.news-item:last-child { border-bottom: none; }
+.news-item.samsung { color: #5a9bff; }
+.news-item.skhynix { color: #ff6b80; }
+.news-item.neutral { color: #6b7a8d; }
+
+/* ── Mode Toggle Bar (between stock & content) ── */
+.hub-mode-bar {
+  border-bottom: 1px solid #1e2a3a;
+  flex-shrink: 0;
+}
+.hub-mode-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 0;
+  background: transparent;
+  border: none;
+  color: #4a5568;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+}
+.hub-mode-btn:hover { color: #a0aec0; background: rgba(90, 155, 255, 0.06); }
+
+/* Unread badge */
+.hub-unread {
+  background: #ff3250;
+  color: white;
+  font-size: 0.6rem;
+  padding: 1px 7px;
+  border-radius: 8px;
+  font-family: 'Share Tech Mono', monospace;
+  animation: hubPulse 1.5s infinite;
+}
+.hub-unread.hidden { display: none; }
+@keyframes hubPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+/* ── Responsive ── */
+@media (max-width: 1280px) {
+  #communityHub.hub-combat { width: 280px; }
+  #communityHub.hub-community { width: 380px; }
+}
+
+/* ─── Event Banner (Admin Event) ─── */
+#hudEventBanner {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255,215,0,0.15);
+  border: 1px solid #ffd700;
+  border-radius: 6px;
+  padding: 10px 28px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ffd700;
+  text-shadow: 0 0 10px rgba(255,215,0,0.4);
+  pointer-events: none;
+  z-index: 15;
+  transition: opacity 0.3s;
+}
+
+/* ─── Active Events Panel ─── */
+#hudActiveEvents {
+  position: absolute;
+  top: 180px;
+  left: 20px;
+  background: rgba(10,14,23,0.85);
+  border: 1px solid #2a3a4e;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  min-width: 170px;
+  pointer-events: none;
+}
+.ae-header {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.65rem;
+  color: #ffd700;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.active-event-item {
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(42,58,78,0.3);
+  color: #e0e6ed;
+}
+.active-event-item:last-child {
+  border-bottom: none;
+}
+
+/* ─── Buff Panel (개인 버프 상태) ─── */
+/* ── Boss Info Panel (hudTop 내부 flex 아이템) ── */
+#hudBossInfo {
+  background: rgba(10,14,23,0.85);
+  border: 1px solid #2a3a4e;
+  border-radius: 4px;
+  padding: 6px 14px;
+  text-align: center;
+  pointer-events: none;
+  min-width: 120px;
+}
+.boss-label {
+  font-family: 'Orbitron', monospace;
+  font-size: 9px;
+  color: #6b7a8d;
+  letter-spacing: 2px;
+}
+.boss-name {
+  font-family: 'Orbitron', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  margin: 2px 0;
+}
+.boss-buff {
+  font-size: 11px;
+  color: #a0aec0;
+}
+.boss-hp-bar {
+  margin-top: 4px;
+  width: 100%;
+  height: 4px;
+  background: #1a1a2e;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.boss-hp-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.2s;
+}
+.boss-timer {
+  font-family: 'Orbitron', monospace;
+  font-size: 18px;
+  color: #ffd700;
+  margin-top: 2px;
+}
+
+#hudBuffPanel {
+  position: absolute;
+  bottom: 60px;
+  left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 15;
+  pointer-events: none;
+}
+.buff-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(10,14,23,0.85);
+  border: 1px solid;
+  border-radius: 6px;
+  padding: 4px 8px;
+  min-width: 130px;
+}
+.buff-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.buff-info {
+  flex: 1;
+  min-width: 0;
+}
+.buff-label {
+  font-size: 10px;
+  font-family: 'Orbitron', sans-serif;
+  color: #e0e6ed;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.buff-timer-bar {
+  height: 3px;
+  background: rgba(42,58,78,0.5);
+  border-radius: 2px;
+  margin: 2px 0;
+  overflow: hidden;
+}
+.buff-timer-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.1s linear;
+}
+.buff-sec {
+  font-size: 9px;
+  font-family: 'Share Tech Mono', monospace;
+  text-align: right;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MOBILE CONTROLS
+   ═══════════════════════════════════════════════════════════ */
+
+/* 모바일 컨트롤 컨테이너 */
+#mobileControls {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 25;
+}
+
+/* 조이스틱 영역 (전체 화면 — 어디든 터치하면 조이스틱 생성) */
+#joystickZone {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  touch-action: none;
+  z-index: 20;
+}
+
+#joystickBase {
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  background: rgba(20, 28, 40, 0.4);
+  border: 2px solid rgba(42, 58, 78, 0.5);
+  border-radius: 50%;
+  display: none; /* 터치 시에만 표시 */
+  pointer-events: none;
+}
+
+#joystickHandle {
+  position: absolute;
+  top: 50px;
+  left: 50px;
+  width: 44px;
+  height: 44px;
+  background: rgba(30, 100, 255, 0.45);
+  border: 2px solid rgba(30, 100, 255, 0.7);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* 액션 버튼 (우측 하단) */
+#mobileActionBtns {
+  position: absolute;
+  bottom: 40px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: auto;
+  z-index: 28;
+}
+
+.mobile-action-btn {
+  width: 56px;
+  height: 56px;
+  background: rgba(20, 28, 40, 0.7);
+  border: 2px solid rgba(42, 58, 78, 0.6);
+  border-radius: 50%;
+  color: #c0c8d4;
+  font-size: 1.4rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.mobile-action-btn:active {
+  background: rgba(30, 100, 255, 0.4);
+  border-color: #1e64ff;
+  transform: scale(0.92);
+}
+
+/* 모바일 HUD 탭 패널 (메뉴 오버레이) */
+#mobileHudPanel {
+  position: fixed;
+  top: 50px;
+  left: 10px;
+  right: 10px;
+  bottom: 200px;
+  background: rgba(10, 14, 23, 0.92);
+  border: 1px solid #2a3a4e;
+  border-radius: 10px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.mobile-hud-header {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #2a3a4e;
+  flex-shrink: 0;
+}
+.mobile-hud-tab {
+  flex: 1;
+  padding: 10px 6px;
+  background: transparent;
+  border: none;
+  color: #6b7a8d;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.8rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+}
+.mobile-hud-tab.active {
+  color: #e0e6ed;
+  border-bottom-color: #1e64ff;
+}
+.mobile-hud-close {
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  color: #6b7a8d;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+.mobile-hud-close:active { color: #ff3250; }
+#mobileHudBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.75rem;
+  color: #c0c8d4;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MOBILE: Info Icon Bar (top-right, 📊💬📰☰)
+   ═══════════════════════════════════════════════════════════ */
+#mobileInfoBar {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  gap: clamp(4px, 1.5vw, 8px);
+  pointer-events: auto;
+  z-index: 28;
+}
+.mobile-info-btn {
+  width: clamp(32px, 9vw, 44px);
+  height: clamp(32px, 9vw, 44px);
+  background: rgba(10, 14, 23, 0.75);
+  border: 1px solid rgba(42, 58, 78, 0.6);
+  border-radius: 8px;
+  color: #c0c8d4;
+  font-size: clamp(0.85rem, 2.5vw, 1.2rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: all 0.15s;
+}
+.mobile-info-btn:active {
+  background: rgba(30, 100, 255, 0.3);
+  border-color: #1e64ff;
+  transform: scale(0.92);
+}
+.mobile-info-btn .info-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 14px;
+  height: 14px;
+  background: #ff3250;
+  border-radius: 7px;
+  font-size: 9px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MOBILE: Modal Overlay (stock/chat/news/menu)
+   ═══════════════════════════════════════════════════════════ */
+#mobileModal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mobile-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+}
+.mobile-modal-content {
+  position: relative;
+  width: 92%;
+  max-width: 400px;
+  max-height: 75vh;
+  background: rgba(10, 14, 23, 0.96);
+  border: 1px solid #2a3a4e;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.mobile-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid #2a3a4e;
+  flex-shrink: 0;
+}
+.mobile-modal-header span {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.8rem;
+  color: #e0e6ed;
+  letter-spacing: 1px;
+}
+.mobile-modal-close {
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: 1px solid #2a3a4e;
+  border-radius: 6px;
+  color: #6b7a8d;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobile-modal-close:active { color: #ff3250; border-color: #ff3250; }
+#mobileModalBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.75rem;
+  color: #c0c8d4;
+}
+/* Chat modal specifics */
+#mobileModalBody .mobile-chat-messages {
+  max-height: 45vh;
+  overflow-y: auto;
+  margin-bottom: 8px;
+}
+#mobileModalBody .mobile-chat-input-row {
+  display: flex;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #1e2a3a;
+}
+#mobileModalBody .mobile-chat-input-row input {
+  flex: 1;
+  background: rgba(20, 28, 40, 0.8);
+  border: 1px solid #2a3a4e;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #e0e6ed;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 16px; /* iOS zoom prevention */
+  outline: none;
+}
+#mobileModalBody .mobile-chat-input-row button {
+  width: 44px;
+  height: 44px;
+  background: rgba(30, 100, 255, 0.3);
+  border: 1px solid #1e64ff;
+  border-radius: 6px;
+  color: #e0e6ed;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE (max-width: 768px)
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  /* 로비 화면 */
+  .game-title { font-size: 2.2rem; }
+  .game-title span { font-size: 3rem; }
+  .start-container { padding: 16px; }
+  .team-btn { min-height: 56px; padding: 12px; }
+  .play-btn { min-height: 48px; font-size: 1rem; }
+
+  /* ── HUD 상단 재배치 (반응형) ── */
+  body.mobile #hudTop {
+    top: 4px;
+    left: 4px;
+    right: auto;
+    transform: none;
+    gap: 2px;
+    flex-direction: column;
+    align-items: flex-start;
+    max-width: calc(100vw - 160px); /* 아이콘 버튼 공간 확보 */
+  }
+  body.mobile #hudScore {
+    font-size: clamp(0.5rem, 2.5vw, 0.7rem);
+    padding: 2px 6px;
+    order: 1;
+    white-space: nowrap;
+  }
+  /* 보스 정보 → 가로로, 점수판 너비에 맞춤 */
+  body.mobile #hudBossInfo {
+    padding: 2px 6px;
+    font-size: 0.5rem;
+    min-width: auto;
+    width: 100%; /* 점수판과 동일 너비 */
+    order: 2;
+    margin-top: 1px;
+    display: flex !important;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    box-sizing: border-box;
+  }
+  body.mobile #hudBossInfo .boss-name { font-size: clamp(8px, 2.2vw, 11px); white-space: nowrap; }
+  body.mobile #hudBossInfo .boss-label { font-size: clamp(6px, 1.5vw, 8px); }
+  body.mobile #hudBossInfo .boss-buff { font-size: clamp(7px, 1.8vw, 9px); white-space: nowrap; }
+  body.mobile #hudBossInfo .boss-hp-bar { flex: 1; min-width: 30px; max-width: 80px; margin: 0; }
+  body.mobile #hudMapName { display: none; }
+
+  /* 킬피드 숨김 */
+  body.mobile #hudKillFeed { display: none; }
+
+  /* 리더보드 → 우측 하단 */
+  body.mobile #hudLeaderboard {
+    position: fixed;
+    bottom: 4px;
+    right: 4px;
+    width: 110px;
+    top: auto;
+    left: auto;
+    background: rgba(10, 14, 23, 0.75);
+    border: 1px solid #2a3a4e;
+    border-radius: 4px;
+    padding: 4px;
+    font-size: 0.55rem;
+    max-height: 120px;
+    overflow: hidden;
+    z-index: 15;
+    pointer-events: none;
+  }
+  body.mobile #hudLeaderboard .lb-header,
+  body.mobile #hudLeaderboard .leaderboard-title {
+    font-size: 7px;
+    margin-bottom: 2px;
+  }
+  body.mobile #hudLeaderboard .lb-row,
+  body.mobile #hudLeaderboard .leaderboard-row {
+    font-size: 8px;
+    padding: 1px 0;
+    line-height: 1.2;
+  }
+
+  /* 버프 패널 — 좌측 미니맵 위 */
+  body.mobile #hudBuffPanel { bottom: 240px; left: 8px; }
+
+  /* 커뮤니티 허브: 모바일에서 완전 숨김 (모달로 대체) */
+  body.mobile #communityHub { display: none !important; }
+
+  /* 면책 조항: 모바일 메인화면에서 숨김 (Stock 모달에서만 표시) */
+  body.mobile #hudDisclaimer { display: none !important; }
+
+  /* 진화 오버레이 */
+  .evolve-container { padding: 16px; gap: 12px; }
+  .evolve-btn { padding: 14px; min-height: 56px; }
+  .evolve-class-name { font-size: 1rem; }
+  .evolve-class-desc { font-size: 0.7rem; }
+
+  /* 사망 화면 */
+  .death-container { padding: 20px; }
+  .death-container h2 { font-size: 1.5rem; }
+
+  /* hover → active */
+  .team-btn:hover { transform: none; }
+  .team-btn:active { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(30, 100, 255, 0.3); }
+}
+
+/* 세로 모드 폰 — 기본 플레이 모드 */
+@media (max-width: 480px) {
+  .game-title { font-size: 1.8rem; }
+  .game-title span { font-size: 2.4rem; }
+  .team-buttons { flex-direction: column; }
+  .team-btn { width: 100%; }
+}
+
+.hidden { display: none !important; }

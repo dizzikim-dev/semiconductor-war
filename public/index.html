@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Semiconductor War | 반도체 전쟁</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- 시작 화면 -->
+  <div id="startScreen">
+    <div class="start-container">
+      <h1 class="game-title">SEMICONDUCTOR<br><span>WAR</span></h1>
+      <p class="game-subtitle">반도체 전쟁 — 삼성 vs SK하이닉스</p>
+
+      <div class="input-group">
+        <label for="nameInput">닉네임</label>
+        <input type="text" id="nameInput" placeholder="이름을 입력하세요" maxlength="16" autofocus>
+      </div>
+
+      <div class="team-select">
+        <label>진영 선택</label>
+        <div class="team-buttons">
+          <button class="team-btn samsung selected" data-team="samsung">
+            <span class="team-name">SAMSUNG</span>
+            <span class="team-desc">GAA · HBM3E · 2nm</span>
+          </button>
+          <button class="team-btn skhynix" data-team="skhynix">
+            <span class="team-name">SK HYNIX</span>
+            <span class="team-desc">HBM4 · NAND · 1β</span>
+          </button>
+        </div>
+      </div>
+
+      <button id="playBtn" class="play-btn">▶ PLAY</button>
+      <p class="controls-hint" id="controlsHint">WASD 이동 · 자동 전투 · E 진화 선택 · Enter 채팅</p>
+    </div>
+    <a href="/admin.html" class="admin-link">ADMIN</a>
+  </div>
+
+  <!-- 게임 캔버스 -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div id="hudTop">
+      <div id="hudBossInfo" class="hidden"></div>
+      <div id="hudScore"></div>
+      <div id="hudMapName"></div>
+    </div>
+    <div id="hudLeaderboard"></div>
+    <!-- Community Hub: Stock + Chat + News -->
+    <div id="communityHub" class="hidden">
+      <div id="hubResizeHandle" class="hub-resize-handle"></div>
+      <div id="hudStockPanel" class="hub-stock"></div>
+      <div class="hub-mode-bar">
+        <button id="hubModeToggle" class="hub-mode-btn">
+          <span id="hubModeIcon">&#9664;</span>
+          <span id="hubModeLabel">OPEN</span>
+          <span id="hubUnreadBadge" class="hub-unread hidden">0</span>
+        </button>
+      </div>
+      <div class="hub-tab-bar">
+        <button class="hub-tab active" data-tab="chat">CHAT</button>
+        <button class="hub-tab" data-tab="news">NEWS</button>
+      </div>
+      <div id="hubChatContent" class="hub-tab-content">
+        <div id="hubMessages" class="hub-messages"></div>
+        <div class="hub-input-row">
+          <input type="text" id="hubChatInput" class="hub-chat-input" placeholder="메시지... (Enter)" maxlength="120" autocomplete="off">
+          <button id="hubChatSend" class="hub-send-btn">&#x27A4;</button>
+        </div>
+      </div>
+      <div id="hubNewsContent" class="hub-tab-content hidden">
+        <div id="newsBody" class="hub-news-body"></div>
+      </div>
+    </div>
+    <div id="hudKillFeed"></div>
+    <div id="hudZoneWarn" class="hidden"></div>
+    <div id="hudEventBanner" class="hidden"></div>
+    <div id="hudActiveEvents" class="hidden"></div>
+    <div id="hudBuffPanel" class="hidden"></div>
+    <div id="hudDisclaimer"></div>
+
+    <!-- Mobile Controls (hidden on PC) -->
+    <div id="mobileControls" class="hidden">
+      <!-- Joystick Zone (left bottom quadrant) -->
+      <div id="joystickZone">
+        <div id="joystickBase">
+          <div id="joystickHandle"></div>
+        </div>
+      </div>
+      <!-- Action Buttons (right bottom) -->
+      <div id="mobileActionBtns">
+        <button id="btnMobileEvolve" class="mobile-action-btn hidden" aria-label="Evolve">⚡</button>
+      </div>
+      <!-- Info Icons (top right) -->
+      <div id="mobileInfoBar">
+        <button class="mobile-info-btn" data-modal="stock" aria-label="Stock">📊</button>
+        <button class="mobile-info-btn" data-modal="chat" aria-label="Chat">💬</button>
+        <button class="mobile-info-btn" data-modal="news" aria-label="News">📰</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Mobile Modal Overlay (stock/chat/news — body-level to avoid #hud pointer-events:none) -->
+  <div id="mobileModal" class="hidden">
+    <div class="mobile-modal-backdrop"></div>
+    <div class="mobile-modal-content">
+      <div class="mobile-modal-header">
+        <span id="mobileModalTitle"></span>
+        <button id="mobileModalClose" class="mobile-modal-close">✕</button>
+      </div>
+      <div id="mobileModalBody"></div>
+    </div>
+  </div>
+
+  <!-- 진화 선택 오버레이 -->
+  <div id="evolveOverlay" class="hidden">
+    <div class="evolve-container">
+      <h2 class="evolve-title">EVOLUTION</h2>
+      <p class="evolve-subtitle">클래스를 선택하세요</p>
+      <div class="evolve-buttons">
+        <button id="evolveCapacitor" class="evolve-btn capacitor-btn">
+          <span class="evolve-class-name">CAPACITOR</span>
+          <span class="evolve-class-icon">&#x2B22;</span>
+          <span class="evolve-class-desc">근접 탱커 — 회전 오비탈 공격 + 보호막</span>
+          <span class="evolve-class-stats">HP 250 · Shield 80 · Orbit DMG 25</span>
+        </button>
+        <button id="evolveRepeater" class="evolve-btn repeater-btn">
+          <span class="evolve-class-name">REPEATER</span>
+          <span class="evolve-class-icon">&#x25B6;</span>
+          <span class="evolve-class-desc">원거리 기동 — 빠른 연사 + 높은 속도</span>
+          <span class="evolve-class-stats">HP 90 · DMG 7 · Range 280</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 사망 화면 -->
+  <div id="deathScreen" class="hidden">
+    <div class="death-container">
+      <h2>PROCESS TERMINATED</h2>
+      <p id="deathInfo"></p>
+      <p id="deathTimer"></p>
+      <button id="respawnBtn" class="play-btn hidden">▶ RESPAWN</button>
+      <button id="homeBtn" class="home-btn">⌂ HOME</button>
+    </div>
+  </div>
+
+  <!-- 라운드 종료 화면 -->
+  <div id="roundEndScreen" class="hidden">
+    <div class="round-end-container">
+      <h2 id="roundResult"></h2>
+      <div id="roundStats"></div>
+      <button id="continueBtn" class="play-btn">CONTINUE</button>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="js/interpolation.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/renderer.js"></script>
+  <script src="js/tooltips.js"></script>
+  <script src="js/hud.js"></script>
+  <script src="js/chat.js"></script>
+  <script src="js/mobile.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
