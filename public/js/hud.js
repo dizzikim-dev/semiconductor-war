@@ -35,6 +35,17 @@ const HUD = (() => {
     // 라운드 타이머 비활성화
     if (els.timer) els.timer.textContent = '';
 
+    // 영토 점수 레이블 추가 (한 번만)
+    if (!document.getElementById('territoryLabel')) {
+      const label = document.createElement('div');
+      label.id = 'territoryLabel';
+      label.style.cssText = 'font-size:9px; color:#6b7a8d; text-align:center; margin-bottom:2px; letter-spacing:1px;';
+      label.textContent = 'TERRITORY — 승리 조건';
+      if (els.score && els.score.parentNode) {
+        els.score.parentNode.insertBefore(label, els.score);
+      }
+    }
+
     // 영토 스코어
     const samTerritory = (state.territoryScore && state.territoryScore.samsung) || 0;
     const skhTerritory = (state.territoryScore && state.territoryScore.skhynix) || 0;
@@ -55,7 +66,9 @@ const HUD = (() => {
     // 킬피드
     if (state.events) {
       for (const evt of state.events) {
-        if (evt.type === 'kill') {
+        if (evt.type === 'revenge') {
+          addKillFeed(`<span style="color:#ff2200">⚔ REVENGE</span> <span style="color:${evt.killerTeam === 'samsung' ? '#5a9bff' : '#ff6b80'}">${evt.killer}</span> → ${evt.victim}`);
+        } else if (evt.type === 'kill') {
           addKillFeed(`<span style="color:${evt.killerTeam === 'samsung' ? '#5a9bff' : '#ff6b80'}">${evt.killer}</span> → ${evt.victim}`);
         } else if (evt.type === 'monster_kill') {
           addKillFeed(`<span style="color:${evt.team === 'samsung' ? '#5a9bff' : '#ff6b80'}">${evt.team.toUpperCase()}</span> killed <span style="color:#ffd700">${evt.monsterName}</span> (${evt.buffLabel})`);

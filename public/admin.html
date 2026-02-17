@@ -405,6 +405,86 @@
       border-bottom: 1px solid rgba(42,58,78,0.2);
     }
 
+    /* Battle Test Mode */
+    .battle-layout { display: flex; gap: 16px; }
+    .battle-setup { width: 240px; flex-shrink: 0; }
+    .battle-canvas-wrap { flex: 1; min-width: 0; }
+    .battle-group { margin-bottom: 14px; }
+    .battle-group .group-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.7rem;
+      color: #ffd700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid rgba(255,215,0,0.2);
+    }
+    .battle-group select, .battle-group input[type="range"] {
+      width: 100%;
+      padding: 6px 8px;
+      background: #0a0e17;
+      border: 1px solid #2a3a4e;
+      border-radius: 4px;
+      color: #e0e6ed;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.8rem;
+      outline: none;
+      margin-bottom: 6px;
+    }
+    .battle-group select:focus { border-color: #ffd700; }
+    .battle-group .level-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .battle-group .level-row input { flex: 1; }
+    .battle-group .level-row span {
+      font-size: 0.75rem;
+      color: #ffd700;
+      min-width: 36px;
+      text-align: right;
+    }
+    .battle-controls { display: flex; gap: 8px; margin: 10px 0; flex-wrap: wrap; }
+    .battle-results {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .battle-stat {
+      background: #0a0e17;
+      border: 1px solid #2a3a4e;
+      border-radius: 4px;
+      padding: 6px 8px;
+      text-align: center;
+    }
+    .battle-stat .bstat-val {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1rem;
+      color: #ffd700;
+      display: block;
+    }
+    .battle-stat .bstat-label {
+      font-size: 0.6rem;
+      color: #6b7a8d;
+      text-transform: uppercase;
+    }
+    .battle-stat.winner { border-color: #22c55e; }
+    .battle-entity-info {
+      font-size: 0.7rem;
+      color: #6b7a8d;
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+    .battle-entity-info .bei-hp { color: #22c55e; }
+    .battle-entity-info .bei-dmg { color: #ef4444; }
+    .battle-entity-info .bei-spd { color: #60a5fa; }
+    @media (max-width: 768px) {
+      .battle-layout { flex-direction: column; }
+      .battle-setup { width: 100%; }
+    }
+
     /* Refresh indicator */
     .refresh-bar {
       height: 2px;
@@ -622,6 +702,68 @@
         </div>
         <canvas id="previewCanvas" width="900" height="400" style="width:100%;background:#0d1117;border:1px solid #2a3a4e;border-radius:4px"></canvas>
         <div id="previewInfo" style="margin-top:8px;font-size:0.8rem;color:#6b7a8d"></div>
+      </div>
+
+      <!-- Battle Test Mode -->
+      <div class="card" style="grid-column:1/-1">
+        <h2>Battle Test Mode</h2>
+        <div id="battleNotLoaded" style="color:#6b7a8d;font-size:0.8rem">Loading balance data...</div>
+        <div id="battleContainer" style="display:none">
+          <div class="battle-layout">
+            <!-- Setup Panel -->
+            <div class="battle-setup">
+              <div class="battle-group">
+                <div class="group-title">Player (Left)</div>
+                <select id="btPlayerClass" onchange="btUpdateInfo()">
+                  <option value="resistor">Resistor (Tier 1)</option>
+                  <option value="capacitor">Capacitor (Tier 2)</option>
+                  <option value="repeater">Repeater (Tier 2)</option>
+                  <option value="inductor">Inductor (Tier 3)</option>
+                  <option value="transformer">Transformer (Tier 3)</option>
+                  <option value="oscillator">Oscillator (Tier 3)</option>
+                  <option value="amplifier">Amplifier (Tier 3)</option>
+                </select>
+                <div class="level-row">
+                  <input type="range" id="btPlayerLevel" min="1" max="20" value="1" oninput="btUpdateInfo()">
+                  <span id="btPlayerLevelLabel">Lv.1</span>
+                </div>
+                <div class="battle-entity-info" id="btPlayerInfo"></div>
+              </div>
+              <div class="battle-group">
+                <div class="group-title">Enemy (Right)</div>
+                <select id="btEnemyCategory" onchange="btUpdateEnemyOptions()">
+                  <option value="class">Player Class</option>
+                  <option value="boss">Boss</option>
+                  <option value="neutral">Neutral Mob</option>
+                  <option value="cell">Cell Turret</option>
+                  <option value="minion">Minion</option>
+                </select>
+                <select id="btEnemyType" onchange="btUpdateInfo()"></select>
+                <div id="btEnemyLevelWrap" class="level-row">
+                  <input type="range" id="btEnemyLevel" min="1" max="20" value="1" oninput="btUpdateInfo()">
+                  <span id="btEnemyLevelLabel">Lv.1</span>
+                </div>
+                <div class="battle-entity-info" id="btEnemyInfo"></div>
+              </div>
+              <div class="battle-controls">
+                <button class="btn btn-primary btn-sm" id="btStartBtn" onclick="btStart()">START</button>
+                <button class="btn btn-sm" style="background:#2a3a4e;color:#e0e6ed" id="btPauseBtn" onclick="btPause()" disabled>PAUSE</button>
+                <button class="btn btn-danger btn-sm" id="btResetBtn" onclick="btReset()">RESET</button>
+              </div>
+              <div class="battle-results" id="btResults">
+                <div class="battle-stat"><span class="bstat-val" id="btStatPlayerDps">-</span><span class="bstat-label">Player DPS</span></div>
+                <div class="battle-stat"><span class="bstat-val" id="btStatEnemyDps">-</span><span class="bstat-label">Enemy DPS</span></div>
+                <div class="battle-stat"><span class="bstat-val" id="btStatTtk">-</span><span class="bstat-label">TTK</span></div>
+                <div class="battle-stat"><span class="bstat-val" id="btStatTime">0.0s</span><span class="bstat-label">Elapsed</span></div>
+                <div class="battle-stat" id="btStatWinnerCard" style="grid-column:1/-1"><span class="bstat-val" id="btStatWinner">-</span><span class="bstat-label">Winner</span></div>
+              </div>
+            </div>
+            <!-- Canvas -->
+            <div class="battle-canvas-wrap">
+              <canvas id="battleCanvas" width="900" height="450" style="width:100%;background:#0d1117;border:1px solid #2a3a4e;border-radius:4px"></canvas>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1554,6 +1696,909 @@
         else if (isClass) info.textContent = isClass.name + ' — ' + isClass.desc;
       }
     }
+
+    // ══════════════════════════════════════════════════════
+    // ── Battle Test Mode ──
+    // ══════════════════════════════════════════════════════
+
+    let btBalance = null; // fetched balance data
+    let btAnim = null;
+    let btRunning = false;
+    let btPaused = false;
+    let btPlayer = null;
+    let btEnemy = null;
+    let btBullets = [];
+    let btDrones = [];
+    let btPulses = [];
+    let btElapsed = 0;
+    let btLastTime = 0;
+    let btWinner = null;
+
+    // CLASS_COLORS for player classes
+    const BT_CLASS_COLORS = {
+      resistor: '#a0aec0', capacitor: '#fbbf24', repeater: '#34d399',
+      inductor: '#818cf8', transformer: '#f472b6', oscillator: '#38bdf8', amplifier: '#fb923c',
+    };
+
+    // ── Fetch balance data ──
+    function btFetchBalance() {
+      api('GET', '/api/admin/balance-data').then(data => {
+        btBalance = data;
+        document.getElementById('battleNotLoaded').style.display = 'none';
+        document.getElementById('battleContainer').style.display = 'block';
+        btUpdateEnemyOptions();
+        btUpdateInfo();
+        btDrawIdle();
+      }).catch(() => {
+        document.getElementById('battleNotLoaded').textContent = 'Failed to load balance data';
+      });
+    }
+
+    // ── Level scaling helpers ──
+    function btClampLevel(lv) { return Math.max(1, Math.min(20, Math.floor(lv) || 1)); }
+    function btScaleHp(base, level, growth) { return Math.round((base || 100) * (1 + (growth?.hp || 0.08) * (btClampLevel(level) - 1))); }
+    function btScaleDmg(base, level, growth) { return (base || 0) * (1 + (growth?.damage || 0.05) * (btClampLevel(level) - 1)); }
+    function btScaleSpd(base, level, growth) { return (base || 100) * (1 + (growth?.speed || 0.01) * (btClampLevel(level) - 1)); }
+
+    // ── Entity factory ──
+    function btCreatePlayerEntity(className, level) {
+      const cls = btBalance.classes[className];
+      if (!cls) return null;
+      const g = btBalance.levelGrowth;
+      const hp = btScaleHp(cls.hp, level, g);
+      const dmg = btScaleDmg(cls.attackDamage, level, g);
+      const spd = btScaleSpd(cls.speed, level, g);
+      return {
+        type: 'player', name: cls.name, className,
+        x: 200, y: 225, radius: btBalance.playerRadius || 20,
+        hp, maxHp: hp, dmg, speed: spd, alive: true,
+        color: BT_CLASS_COLORS[className] || '#a0aec0',
+        attackType: cls.attackType,
+        attackRange: cls.attackRange,
+        attackCooldown: cls.attackCooldown,
+        bulletSpeed: cls.bulletSpeed,
+        bulletRadius: cls.bulletRadius || 4,
+        bulletLifetime: cls.bulletLifetime || 1500,
+        // orbit
+        orbCount: cls.orbCount || 0,
+        orbRadius: cls.orbRadius || 0,
+        orbSpeed: cls.orbSpeed || 0,
+        orbSize: cls.orbSize || 10,
+        orbHitCooldown: cls.orbHitCooldown || 700,
+        orbAngle: 0,
+        orbLastHit: 0,
+        // burst
+        burstCount: cls.burstCount || 1,
+        burstDelay: cls.burstDelay || 0,
+        burstCooldown: cls.burstCooldown || 0,
+        burstRemaining: 0,
+        burstTimer: 0,
+        // amplifier distance scaling
+        distanceDmgScale: cls.distanceDmgScale || false,
+        maxDmgMultiplier: cls.maxDmgMultiplier || 1,
+        // shield
+        shield: cls.shieldMax || 0,
+        maxShield: cls.shieldMax || 0,
+        shieldRechargeDelay: cls.shieldRechargeDelay || 5000,
+        shieldRechargeRate: cls.shieldRechargeRate || 0,
+        shieldRechargeTimer: 0,
+        // magnetic pull
+        magneticPull: cls.magneticPull || false,
+        magneticRange: cls.magneticRange || 0,
+        magneticForce: cls.magneticForce || 0,
+        // tracking
+        fireCooldown: 0,
+        totalDmgDealt: 0,
+        level,
+      };
+    }
+
+    function btCreateBossEntity(bossIdx) {
+      const boss = btBalance.monsterTypes[bossIdx];
+      const hp = boss.hp || 500;
+      return {
+        type: 'boss', name: boss.name,
+        x: 700, y: 225, radius: btBalance.monsterRadius || 35,
+        hp, maxHp: hp, alive: true,
+        color: boss.color,
+        attackStyle: boss.attackStyle,
+        attackDamage: boss.attackDamage,
+        attackCooldown: boss.attackCooldown,
+        bulletCount: boss.bulletCount || 1,
+        spreadAngle: boss.spreadAngle || 0,
+        bulletSpeed: boss.bulletSpeed || btBalance.bossBulletSpeed || 300,
+        droneCount: boss.droneCount || 0,
+        maxDrones: boss.maxDrones || 0,
+        pulseRadius: boss.pulseRadius || btBalance.bossPulseRadius || 200,
+        dmg: boss.attackDamage,
+        speed: 0, shield: 0, maxShield: 0,
+        fireCooldown: 0,
+        totalDmgDealt: 0,
+        pulseActive: false, pulseTimer: 0, pulseCurrentRadius: 0,
+      };
+    }
+
+    function btCreateNeutralEntity(typeKey) {
+      const mob = btBalance.neutralMobTypes[typeKey];
+      return {
+        type: 'neutral', name: mob.name,
+        x: 700, y: 225, radius: mob.radius,
+        hp: mob.hp, maxHp: mob.hp, alive: true,
+        color: mob.color,
+        attackDamage: mob.attackDamage || 0,
+        attackRange: mob.attackRange || 0,
+        attackCooldown: mob.attackCooldown || 9999,
+        behavior: mob.behavior,
+        dmg: mob.attackDamage || 0,
+        speed: 0, shield: 0, maxShield: 0,
+        fireCooldown: 0,
+        totalDmgDealt: 0,
+        attackType: mob.behavior === 'defensive' ? 'melee' : 'none',
+      };
+    }
+
+    function btCreateCellEntity() {
+      const cb = btBalance.cellBalance;
+      return {
+        type: 'cell', name: 'Cell Turret',
+        x: 700, y: 225, radius: cb.radius,
+        hp: cb.maxHp, maxHp: cb.maxHp, alive: true,
+        color: '#22c55e',
+        attackDamage: cb.attackDamage,
+        attackRange: cb.attackRange,
+        attackCooldown: cb.attackCooldown,
+        dmg: cb.attackDamage,
+        speed: 0, shield: 0, maxShield: 0,
+        fireCooldown: 0,
+        totalDmgDealt: 0,
+        attackType: 'turret',
+        bulletSpeed: 400,
+        bulletRadius: 5,
+        overheat: 0,
+        overheatChargeRate: cb.overheatChargeRate,
+        overheatThreshold: cb.overheatThreshold,
+        overheatMinCooldown: cb.overheatMinCooldown,
+      };
+    }
+
+    function btCreateMinionEntity() {
+      const ms = btBalance.minionStats;
+      return {
+        type: 'minion', name: 'Minion',
+        x: 700, y: 225, radius: ms.radius,
+        hp: ms.hp, maxHp: ms.hp, alive: true,
+        color: '#ff6b80',
+        attackDamage: ms.damage,
+        attackRange: ms.attackRange,
+        attackCooldown: ms.attackCooldown,
+        dmg: ms.damage,
+        speed: ms.speed, shield: 0, maxShield: 0,
+        fireCooldown: 0,
+        totalDmgDealt: 0,
+        attackType: 'melee',
+      };
+    }
+
+    // ── UI update helpers ──
+    function btUpdateEnemyOptions() {
+      const cat = document.getElementById('btEnemyCategory').value;
+      const sel = document.getElementById('btEnemyType');
+      const levelWrap = document.getElementById('btEnemyLevelWrap');
+      sel.innerHTML = '';
+      if (cat === 'class') {
+        Object.keys(btBalance.classes).forEach(k => {
+          const o = document.createElement('option');
+          o.value = k; o.textContent = btBalance.classes[k].name;
+          sel.appendChild(o);
+        });
+        levelWrap.style.display = 'flex';
+      } else if (cat === 'boss') {
+        btBalance.monsterTypes.forEach((m, i) => {
+          const o = document.createElement('option');
+          o.value = i; o.textContent = m.name + ' (' + m.attackStyle + ')';
+          sel.appendChild(o);
+        });
+        levelWrap.style.display = 'none';
+      } else if (cat === 'neutral') {
+        Object.keys(btBalance.neutralMobTypes).forEach(k => {
+          const o = document.createElement('option');
+          o.value = k; o.textContent = btBalance.neutralMobTypes[k].name;
+          sel.appendChild(o);
+        });
+        levelWrap.style.display = 'none';
+      } else if (cat === 'cell') {
+        const o = document.createElement('option');
+        o.value = 'cell'; o.textContent = 'Cell Turret';
+        sel.appendChild(o);
+        levelWrap.style.display = 'none';
+      } else if (cat === 'minion') {
+        const o = document.createElement('option');
+        o.value = 'minion'; o.textContent = 'Minion';
+        sel.appendChild(o);
+        levelWrap.style.display = 'none';
+      }
+      btUpdateInfo();
+    }
+
+    function btUpdateInfo() {
+      if (!btBalance) return;
+      // Player info
+      const pCls = document.getElementById('btPlayerClass').value;
+      const pLv = parseInt(document.getElementById('btPlayerLevel').value);
+      document.getElementById('btPlayerLevelLabel').textContent = 'Lv.' + pLv;
+      const cls = btBalance.classes[pCls];
+      if (cls) {
+        const g = btBalance.levelGrowth;
+        document.getElementById('btPlayerInfo').innerHTML =
+          `<span class="bei-hp">HP ${btScaleHp(cls.hp, pLv, g)}</span> ` +
+          `<span class="bei-dmg">DMG ${btScaleDmg(cls.attackDamage, pLv, g).toFixed(1)}</span> ` +
+          `<span class="bei-spd">SPD ${btScaleSpd(cls.speed, pLv, g).toFixed(0)}</span>` +
+          (cls.shieldMax ? `<br>Shield: ${cls.shieldMax}` : '') +
+          `<br>${cls.attackType} | CD ${cls.attackCooldown}ms | Range ${cls.attackRange}px`;
+      }
+      // Enemy info
+      const eCat = document.getElementById('btEnemyCategory').value;
+      const eType = document.getElementById('btEnemyType').value;
+      const eLv = parseInt(document.getElementById('btEnemyLevel').value);
+      document.getElementById('btEnemyLevelLabel').textContent = 'Lv.' + eLv;
+      const eInfo = document.getElementById('btEnemyInfo');
+      if (eCat === 'class') {
+        const ec = btBalance.classes[eType];
+        if (ec) {
+          const g = btBalance.levelGrowth;
+          eInfo.innerHTML =
+            `<span class="bei-hp">HP ${btScaleHp(ec.hp, eLv, g)}</span> ` +
+            `<span class="bei-dmg">DMG ${btScaleDmg(ec.attackDamage, eLv, g).toFixed(1)}</span> ` +
+            `<span class="bei-spd">SPD ${btScaleSpd(ec.speed, eLv, g).toFixed(0)}</span>` +
+            (ec.shieldMax ? `<br>Shield: ${ec.shieldMax}` : '') +
+            `<br>${ec.attackType} | CD ${ec.attackCooldown}ms | Range ${ec.attackRange}px`;
+        }
+      } else if (eCat === 'boss') {
+        const boss = btBalance.monsterTypes[parseInt(eType)];
+        if (boss) {
+          eInfo.innerHTML =
+            `<span class="bei-hp">HP ${boss.hp}</span> ` +
+            `<span class="bei-dmg">DMG ${boss.attackDamage}</span>` +
+            `<br>${boss.attackStyle} | CD ${boss.attackCooldown}ms | ${boss.label || ''}`;
+        }
+      } else if (eCat === 'neutral') {
+        const nm = btBalance.neutralMobTypes[eType];
+        if (nm) eInfo.innerHTML = `<span class="bei-hp">HP ${nm.hp}</span> | ${nm.behavior}` + (nm.attackDamage ? ` | DMG ${nm.attackDamage}` : '');
+      } else if (eCat === 'cell') {
+        const cb = btBalance.cellBalance;
+        eInfo.innerHTML = `<span class="bei-hp">HP ${cb.maxHp}</span> <span class="bei-dmg">DMG ${cb.attackDamage}</span><br>Range ${cb.attackRange}px | CD ${cb.attackCooldown}ms`;
+      } else if (eCat === 'minion') {
+        const ms = btBalance.minionStats;
+        eInfo.innerHTML = `<span class="bei-hp">HP ${ms.hp}</span> <span class="bei-dmg">DMG ${ms.damage}</span><br>Melee | Range ${ms.attackRange}px`;
+      }
+    }
+
+    // ── Create enemy based on UI ──
+    function btCreateEnemy() {
+      const cat = document.getElementById('btEnemyCategory').value;
+      const typ = document.getElementById('btEnemyType').value;
+      const lv = parseInt(document.getElementById('btEnemyLevel').value);
+      if (cat === 'class') {
+        const e = btCreatePlayerEntity(typ, lv);
+        if (e) { e.x = 700; e.color = BT_CLASS_COLORS[typ] || '#ff6b80'; }
+        return e;
+      }
+      if (cat === 'boss') return btCreateBossEntity(parseInt(typ));
+      if (cat === 'neutral') return btCreateNeutralEntity(typ);
+      if (cat === 'cell') return btCreateCellEntity();
+      if (cat === 'minion') return btCreateMinionEntity();
+      return null;
+    }
+
+    // ── Damage application ──
+    function btApplyDamage(target, dmg, source) {
+      if (!target.alive) return;
+      let remaining = dmg;
+      // Shield absorb
+      if (target.shield > 0) {
+        const absorbed = Math.min(target.shield, remaining);
+        target.shield -= absorbed;
+        remaining -= absorbed;
+        if (target.shield <= 0) target.shieldRechargeTimer = target.shieldRechargeDelay || 5000;
+      }
+      target.hp -= remaining;
+      if (source) source.totalDmgDealt += dmg;
+      if (target.hp <= 0) { target.hp = 0; target.alive = false; }
+    }
+
+    // ── Attack logic per entity ──
+    function btEntityAttack(entity, target, dt) {
+      if (!entity.alive || !target.alive) return;
+      const dx = target.x - entity.x;
+      const dy = target.y - entity.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const angle = Math.atan2(dy, dx);
+
+      // Shield recharge
+      if (entity.maxShield > 0 && entity.shield < entity.maxShield) {
+        if (entity.shieldRechargeTimer > 0) {
+          entity.shieldRechargeTimer -= dt * 1000;
+        } else {
+          entity.shield = Math.min(entity.maxShield, entity.shield + (entity.shieldRechargeRate || 20) * dt);
+        }
+      }
+
+      // Magnetic pull (Inductor)
+      if (entity.magneticPull && dist <= entity.magneticRange && dist > entity.orbRadius) {
+        const pullStr = entity.magneticForce * dt;
+        const pullAngle = Math.atan2(entity.y - target.y, entity.x - target.x);
+        target.x += Math.cos(pullAngle) * pullStr;
+        target.y += Math.sin(pullAngle) * pullStr;
+        target.x = Math.max(50, Math.min(850, target.x));
+      }
+
+      // Orbit attack (capacitor/inductor/transformer)
+      if (entity.attackType === 'orbit' && entity.orbCount > 0) {
+        entity.orbAngle += (entity.orbSpeed || 2.8) * dt;
+        for (let i = 0; i < entity.orbCount; i++) {
+          const oa = entity.orbAngle + (Math.PI * 2 / entity.orbCount) * i;
+          const ox = entity.x + Math.cos(oa) * entity.orbRadius;
+          const oy = entity.y + Math.sin(oa) * entity.orbRadius;
+          const odx = target.x - ox;
+          const ody = target.y - oy;
+          const oDist = Math.sqrt(odx * odx + ody * ody);
+          if (oDist < (entity.orbSize || 10) + target.radius) {
+            const now = btElapsed * 1000;
+            if (now - (entity.orbLastHit || 0) >= entity.orbHitCooldown) {
+              entity.orbLastHit = now;
+              btApplyDamage(target, entity.dmg, entity);
+            }
+          }
+        }
+        return;
+      }
+
+      // Melee attack (minion, neutral mob)
+      if (entity.attackType === 'melee') {
+        if (dist <= (entity.attackRange || 30) + target.radius) {
+          entity.fireCooldown -= dt * 1000;
+          if (entity.fireCooldown <= 0) {
+            entity.fireCooldown = entity.attackCooldown;
+            btApplyDamage(target, entity.dmg, entity);
+          }
+        }
+        // Move toward target
+        if (dist > (entity.attackRange || 30) + target.radius && entity.speed > 0) {
+          entity.x += Math.cos(angle) * entity.speed * dt;
+          entity.y += Math.sin(angle) * entity.speed * dt;
+        }
+        return;
+      }
+
+      // Turret attack (cell)
+      if (entity.attackType === 'turret') {
+        if (dist <= entity.attackRange) {
+          // Overheat charge
+          if (entity.overheat !== undefined) {
+            entity.overheat = Math.min(1, entity.overheat + (entity.overheatChargeRate || 0.12) * dt);
+          }
+          let cd = entity.attackCooldown;
+          if (entity.overheat >= (entity.overheatThreshold || 0.6)) {
+            const ratio = (entity.overheat - entity.overheatThreshold) / (1 - entity.overheatThreshold);
+            cd = entity.attackCooldown - (entity.attackCooldown - (entity.overheatMinCooldown || 400)) * ratio;
+          }
+          entity.fireCooldown -= dt * 1000;
+          if (entity.fireCooldown <= 0) {
+            entity.fireCooldown = cd;
+            btBullets.push({
+              x: entity.x, y: entity.y, angle, speed: entity.bulletSpeed || 400,
+              radius: entity.bulletRadius || 5, dmg: entity.dmg, life: 2,
+              color: entity.color, owner: 'enemy', originX: entity.x, originY: entity.y,
+            });
+          }
+        } else if (entity.overheat > 0) {
+          // Overheat decay when out of range
+          entity.overheat = Math.max(0, entity.overheat - (btBalance.cellBalance.overheatDecayRate || 0.08) * dt);
+        }
+        return;
+      }
+
+      // Boss attack patterns
+      if (entity.type === 'boss') {
+        entity.fireCooldown -= dt * 1000;
+        if (entity.fireCooldown <= 0) {
+          entity.fireCooldown = entity.attackCooldown;
+          const spd = entity.bulletSpeed || btBalance.bossBulletSpeed || 300;
+          const bRad = btBalance.bossBulletRadius || 6;
+          if (entity.attackStyle === 'spray') {
+            for (let i = 0; i < (entity.bulletCount || 3); i++) {
+              const sa = entity.spreadAngle || 0.4;
+              const a = angle + (i - (entity.bulletCount - 1) / 2) * sa;
+              btBullets.push({ x: entity.x, y: entity.y, angle: a, speed: spd, radius: bRad, dmg: entity.dmg, life: 2, color: entity.color, owner: 'enemy', originX: entity.x, originY: entity.y });
+            }
+          } else if (entity.attackStyle === 'sniper') {
+            btBullets.push({ x: entity.x, y: entity.y, angle, speed: spd, radius: bRad + 2, dmg: entity.dmg, life: 2, color: entity.color, owner: 'enemy', originX: entity.x, originY: entity.y });
+          } else if (entity.attackStyle === 'drone') {
+            const currentDrones = btDrones.filter(d => d.owner === 'enemy' && d.life > 0).length;
+            if (currentDrones < (entity.maxDrones || 4)) {
+              btDrones.push({
+                x: entity.x, y: entity.y, angle: Math.random() * Math.PI * 2,
+                speed: btBalance.bossDroneSpeed || 100, radius: btBalance.bossDroneRadius || 10,
+                hp: btBalance.bossDroneHp || 30, dmg: btBalance.bossDroneDamage || 8,
+                life: (btBalance.bossDroneLifetime || 6000) / 1000,
+                color: entity.color, owner: 'enemy', attackCd: 0,
+              });
+            }
+          } else if (entity.attackStyle === 'pulse') {
+            btPulses.push({ x: entity.x, y: entity.y, r: 0, maxR: entity.pulseRadius || 200, alpha: 0.8, color: entity.color, dmg: entity.dmg, owner: 'enemy', hit: false });
+          } else if (entity.attackStyle === 'twin') {
+            const perp = angle + Math.PI / 2;
+            for (const s of [-1, 1]) {
+              btBullets.push({
+                x: entity.x + Math.cos(perp) * 8 * s, y: entity.y + Math.sin(perp) * 8 * s,
+                angle, speed: spd, radius: bRad, dmg: entity.dmg, life: 2,
+                color: entity.color, owner: 'enemy', originX: entity.x, originY: entity.y,
+              });
+            }
+          }
+        }
+        return;
+      }
+
+      // Player projectile attack (single / burst)
+      if (!entity.attackRange || dist > entity.attackRange) return;
+      entity.fireCooldown -= dt * 1000;
+
+      if (entity.attackType === 'burst') {
+        if (entity.burstRemaining > 0) {
+          entity.burstTimer -= dt * 1000;
+          if (entity.burstTimer <= 0) {
+            entity.burstTimer = entity.burstDelay || 80;
+            entity.burstRemaining--;
+            btBullets.push({
+              x: entity.x, y: entity.y, angle, speed: entity.bulletSpeed || 500,
+              radius: entity.bulletRadius || 3, dmg: entity.dmg, life: 1.5,
+              color: entity.color, owner: 'player',
+              originX: entity.x, originY: entity.y,
+              distScale: entity.distanceDmgScale, maxDmgMul: entity.maxDmgMultiplier,
+            });
+          }
+        } else if (entity.fireCooldown <= 0) {
+          entity.fireCooldown = entity.burstCooldown || 450;
+          entity.burstRemaining = (entity.burstCount || 3) - 1;
+          entity.burstTimer = entity.burstDelay || 80;
+          btBullets.push({
+            x: entity.x, y: entity.y, angle, speed: entity.bulletSpeed || 500,
+            radius: entity.bulletRadius || 3, dmg: entity.dmg, life: 1.5,
+            color: entity.color, owner: 'player',
+            originX: entity.x, originY: entity.y,
+            distScale: entity.distanceDmgScale, maxDmgMul: entity.maxDmgMultiplier,
+          });
+        }
+        return;
+      }
+
+      if (entity.fireCooldown <= 0) {
+        entity.fireCooldown = entity.attackCooldown;
+        const bCount = entity.className === 'repeater' ? 2 : 1;
+        for (let i = 0; i < bCount; i++) {
+          const spread = bCount > 1 ? (i - 0.5) * 0.08 : 0;
+          btBullets.push({
+            x: entity.x, y: entity.y, angle: angle + spread, speed: entity.bulletSpeed || 500,
+            radius: entity.bulletRadius || 4, dmg: entity.dmg, life: 1.5,
+            color: entity.color, owner: 'player',
+            originX: entity.x, originY: entity.y,
+            distScale: entity.distanceDmgScale, maxDmgMul: entity.maxDmgMultiplier,
+          });
+        }
+      }
+    }
+
+    // ── Simulation frame ──
+    function btFrame(now) {
+      if (!btRunning) return;
+      if (btPaused) { btAnim = requestAnimationFrame(btFrame); return; }
+      const dt = Math.min((now - btLastTime) / 1000, 0.1);
+      btLastTime = now;
+      btElapsed += dt;
+
+      // Update attacks
+      if (btPlayer.alive && btEnemy.alive) {
+        btEntityAttack(btPlayer, btEnemy, dt);
+        btEntityAttack(btEnemy, btPlayer, dt);
+      }
+
+      // Update bullets
+      for (const b of btBullets) {
+        b.x += Math.cos(b.angle) * b.speed * dt;
+        b.y += Math.sin(b.angle) * b.speed * dt;
+        b.life -= dt;
+        // Collision check
+        const target = b.owner === 'player' ? btEnemy : btPlayer;
+        if (target.alive) {
+          const bdx = target.x - b.x;
+          const bdy = target.y - b.y;
+          const bDist = Math.sqrt(bdx * bdx + bdy * bdy);
+          if (bDist < b.radius + target.radius) {
+            let dmg = b.dmg;
+            // Distance dmg scale (Amplifier)
+            if (b.distScale) {
+              const travDist = Math.sqrt((b.x - b.originX) ** 2 + (b.y - b.originY) ** 2);
+              const maxRange = btBalance.classes.amplifier?.attackRange || 400;
+              const ratio = Math.min(travDist / maxRange, 1);
+              dmg *= (1 + (b.maxDmgMul - 1) * ratio);
+            }
+            const src = b.owner === 'player' ? btPlayer : btEnemy;
+            btApplyDamage(target, dmg, src);
+            b.life = 0;
+          }
+        }
+      }
+      btBullets = btBullets.filter(b => b.life > 0 && b.x > -50 && b.x < 950 && b.y > -50 && b.y < 500);
+
+      // Update drones
+      for (const d of btDrones) {
+        d.life -= dt;
+        const target = d.owner === 'enemy' ? btPlayer : btEnemy;
+        if (target.alive) {
+          const ddx = target.x - d.x;
+          const ddy = target.y - d.y;
+          const dDist = Math.sqrt(ddx * ddx + ddy * ddy);
+          d.angle = Math.atan2(ddy, ddx);
+          d.x += Math.cos(d.angle) * d.speed * dt;
+          d.y += Math.sin(d.angle) * d.speed * dt;
+          // Contact damage
+          if (dDist < d.radius + target.radius) {
+            d.attackCd -= dt * 1000;
+            if (d.attackCd <= 0) {
+              d.attackCd = 1000;
+              const src = d.owner === 'enemy' ? btEnemy : btPlayer;
+              btApplyDamage(target, d.dmg, src);
+            }
+          }
+        }
+      }
+      btDrones = btDrones.filter(d => d.life > 0);
+
+      // Update pulses
+      for (const p of btPulses) {
+        p.r += 300 * dt;
+        p.alpha -= 1.5 * dt;
+        // Pulse damage
+        if (!p.hit && p.r > 0) {
+          const target = p.owner === 'enemy' ? btPlayer : btEnemy;
+          if (target.alive) {
+            const pdx = target.x - p.x;
+            const pdy = target.y - p.y;
+            const pDist = Math.sqrt(pdx * pdx + pdy * pdy);
+            if (pDist < p.r + target.radius && pDist > p.r - 30) {
+              const src = p.owner === 'enemy' ? btEnemy : btPlayer;
+              btApplyDamage(target, p.dmg, src);
+              p.hit = true;
+            }
+          }
+        }
+      }
+      btPulses = btPulses.filter(p => p.alpha > 0);
+
+      // Check winner
+      if (!btPlayer.alive && btWinner === null) {
+        btWinner = btEnemy.name;
+        document.getElementById('btStatWinner').textContent = btEnemy.name + ' WINS';
+        document.getElementById('btStatWinnerCard').classList.add('winner');
+        document.getElementById('btStatTtk').textContent = btElapsed.toFixed(2) + 's';
+      }
+      if (!btEnemy.alive && btWinner === null) {
+        btWinner = btPlayer.name;
+        document.getElementById('btStatWinner').textContent = btPlayer.name + ' WINS';
+        document.getElementById('btStatWinnerCard').classList.add('winner');
+        document.getElementById('btStatTtk').textContent = btElapsed.toFixed(2) + 's';
+      }
+
+      // Update stats
+      const pDps = btElapsed > 0 ? (btPlayer.totalDmgDealt / btElapsed).toFixed(1) : '0';
+      const eDps = btElapsed > 0 ? (btEnemy.totalDmgDealt / btElapsed).toFixed(1) : '0';
+      document.getElementById('btStatPlayerDps').textContent = pDps;
+      document.getElementById('btStatEnemyDps').textContent = eDps;
+      document.getElementById('btStatTime').textContent = btElapsed.toFixed(1) + 's';
+
+      btRender();
+
+      if (btPlayer.alive && btEnemy.alive) {
+        btAnim = requestAnimationFrame(btFrame);
+      } else {
+        // One more frame after death for final render
+        btRunning = false;
+      }
+    }
+
+    // ── Render ──
+    function btRender() {
+      const cvs = document.getElementById('battleCanvas');
+      if (!cvs) return;
+      const ctx = cvs.getContext('2d');
+      const W = cvs.width, H = cvs.height;
+      ctx.clearRect(0, 0, W, H);
+
+      // Grid
+      ctx.strokeStyle = '#1a2030';
+      ctx.lineWidth = 0.5;
+      for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+      for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+      // Distance line
+      if (btPlayer && btEnemy) {
+        ctx.save();
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = '#2a3a4e';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(btPlayer.x, btPlayer.y); ctx.lineTo(btEnemy.x, btEnemy.y); ctx.stroke();
+        ctx.setLineDash([]);
+        const dist = Math.sqrt((btEnemy.x - btPlayer.x) ** 2 + (btEnemy.y - btPlayer.y) ** 2);
+        ctx.font = '10px Share Tech Mono';
+        ctx.fillStyle = '#4a5568';
+        ctx.textAlign = 'center';
+        ctx.fillText(Math.round(dist) + 'px', (btPlayer.x + btEnemy.x) / 2, (btPlayer.y + btEnemy.y) / 2 - 8);
+        ctx.restore();
+      }
+
+      // Draw entities
+      if (btPlayer) btDrawEntity(ctx, btPlayer, 'left');
+      if (btEnemy) btDrawEntity(ctx, btEnemy, 'right');
+
+      // Draw bullets
+      for (const b of btBullets) {
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = b.color;
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 0.3;
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.radius * 2, 0, Math.PI * 2); ctx.fill();
+      }
+
+      // Draw drones
+      for (const d of btDrones) {
+        ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.angle);
+        ctx.fillStyle = d.color; ctx.globalAlpha = 0.8;
+        ctx.beginPath(); ctx.moveTo(d.radius, 0); ctx.lineTo(-d.radius * 0.7, -d.radius * 0.7); ctx.lineTo(-d.radius * 0.7, d.radius * 0.7); ctx.closePath(); ctx.fill();
+        ctx.restore();
+      }
+
+      // Draw pulses
+      for (const p of btPulses) {
+        ctx.globalAlpha = p.alpha * 0.3;
+        ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = p.alpha;
+        ctx.strokeStyle = p.color; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.stroke();
+      }
+
+      ctx.globalAlpha = 1;
+
+      // Title overlay
+      ctx.font = 'bold 12px Orbitron';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#ffd700';
+      ctx.fillText('BATTLE TEST', 10, 20);
+      if (btWinner) {
+        ctx.font = 'bold 24px Orbitron';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#ffd700';
+        ctx.fillText(btWinner + ' WINS', W / 2, H / 2 - 10);
+        ctx.font = '14px Share Tech Mono';
+        ctx.fillStyle = '#6b7a8d';
+        ctx.fillText('TTK: ' + btElapsed.toFixed(2) + 's', W / 2, H / 2 + 16);
+      }
+    }
+
+    function btDrawEntity(ctx, e, side) {
+      if (!e) return;
+      const r = e.radius;
+      const x = e.x, y = e.y;
+
+      // Range circle
+      if (e.attackRange) {
+        ctx.globalAlpha = 0.06;
+        ctx.fillStyle = e.color;
+        ctx.beginPath(); ctx.arc(x, y, e.attackRange, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 0.15;
+        ctx.strokeStyle = e.color;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.arc(x, y, e.attackRange, 0, Math.PI * 2); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      ctx.globalAlpha = e.alive ? 0.9 : 0.3;
+
+      // Body shape
+      if (e.type === 'boss') {
+        ctx.fillStyle = e.color;
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+        // Attack style barrel indicators
+        ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.4;
+        if (e.attackStyle === 'spray') {
+          for (let i = -1; i <= 1; i++) {
+            ctx.save(); ctx.translate(x, y); ctx.rotate(i * 0.4);
+            ctx.fillRect(r * 0.3, -2, r * 0.6, 4); ctx.restore();
+          }
+        } else if (e.attackStyle === 'sniper') {
+          ctx.fillRect(x + r * 0.2, y - 3, r * 0.9, 6);
+        } else if (e.attackStyle === 'twin') {
+          ctx.fillRect(x + r * 0.3, y - 8, r * 0.5, 4);
+          ctx.fillRect(x + r * 0.3, y + 4, r * 0.5, 4);
+        } else if (e.attackStyle === 'drone') {
+          ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+          ctx.strokeRect(x - r * 0.4, y - r * 0.4, r * 0.8, r * 0.8);
+        }
+      } else if (e.type === 'cell') {
+        // Capacitor symbol
+        ctx.fillStyle = e.color;
+        ctx.fillRect(x - r, y - 3, r * 2, 6);
+        ctx.fillRect(x - 3, y - r, 6, r * 2);
+        ctx.strokeStyle = e.color; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+      } else if (e.type === 'minion') {
+        ctx.fillStyle = e.color;
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+      } else if (e.type === 'neutral') {
+        ctx.fillStyle = e.color;
+        const sides = e.name === 'Photon' ? 3 : e.name === 'Dopant' ? 4 : 5;
+        ctx.beginPath();
+        for (let i = 0; i < sides; i++) {
+          const a = (Math.PI * 2 / sides) * i - Math.PI / 2;
+          const px = x + Math.cos(a) * r;
+          const py = y + Math.sin(a) * r;
+          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath(); ctx.fill();
+      } else {
+        // Player class
+        if (e.attackType === 'orbit') {
+          ctx.fillStyle = e.color;
+          ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+          // Shield ring
+          if (e.maxShield > 0) {
+            ctx.globalAlpha = 0.3 * (e.shield / e.maxShield);
+            ctx.strokeStyle = '#60a5fa'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.arc(x, y, r + 6, 0, Math.PI * 2); ctx.stroke();
+          }
+          // Orbital orbs
+          ctx.globalAlpha = e.alive ? 1 : 0.3;
+          for (let i = 0; i < e.orbCount; i++) {
+            const oa = (e.orbAngle || 0) + (Math.PI * 2 / e.orbCount) * i;
+            const ox = x + Math.cos(oa) * e.orbRadius;
+            const oy = y + Math.sin(oa) * e.orbRadius;
+            ctx.fillStyle = e.color;
+            ctx.beginPath(); ctx.arc(ox, oy, e.orbSize * 0.6, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+          }
+        } else {
+          // Triangle player
+          const aim = btEnemy && e === btPlayer ? Math.atan2(btEnemy.y - y, btEnemy.x - x) : (btPlayer ? Math.atan2(btPlayer.y - y, btPlayer.x - x) : 0);
+          ctx.save(); ctx.translate(x, y); ctx.rotate(aim);
+          ctx.fillStyle = e.color;
+          ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(-r * 0.7, -r * 0.7); ctx.lineTo(-r * 0.7, r * 0.7); ctx.closePath(); ctx.fill();
+          ctx.restore();
+          // Shield ring (for transformer etc without orbit but with shield)
+          if (e.maxShield > 0 && e.attackType !== 'orbit') {
+            ctx.globalAlpha = 0.3 * (e.shield / e.maxShield);
+            ctx.strokeStyle = '#60a5fa'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(x, y, r + 5, 0, Math.PI * 2); ctx.stroke();
+          }
+        }
+      }
+
+      ctx.globalAlpha = 1;
+
+      // HP bar
+      const hpW = r * 2.5;
+      const hpH = 5;
+      const hpX = x - hpW / 2;
+      const hpY = y - r - 18;
+      // Background
+      ctx.fillStyle = '#1a2030';
+      ctx.fillRect(hpX, hpY, hpW, hpH);
+      // HP fill
+      const hpRatio = Math.max(0, e.hp / e.maxHp);
+      const hpColor = hpRatio > 0.5 ? '#22c55e' : hpRatio > 0.25 ? '#f59e0b' : '#ef4444';
+      ctx.fillStyle = hpColor;
+      ctx.fillRect(hpX, hpY, hpW * hpRatio, hpH);
+      // Shield bar
+      if (e.maxShield > 0) {
+        const shY = hpY - 4;
+        ctx.fillStyle = '#1a2030';
+        ctx.fillRect(hpX, shY, hpW, 3);
+        ctx.fillStyle = '#60a5fa';
+        ctx.fillRect(hpX, shY, hpW * Math.max(0, e.shield / e.maxShield), 3);
+      }
+
+      // HP text
+      ctx.font = '10px Share Tech Mono';
+      ctx.fillStyle = '#e0e6ed';
+      ctx.textAlign = 'center';
+      ctx.fillText(Math.ceil(e.hp) + '/' + e.maxHp, x, hpY - 3);
+
+      // Name
+      ctx.font = 'bold 11px Orbitron';
+      ctx.fillStyle = e.color;
+      ctx.fillText(e.name, x, hpY - 15);
+    }
+
+    // ── Draw idle state ──
+    function btDrawIdle() {
+      const cvs = document.getElementById('battleCanvas');
+      if (!cvs) return;
+      const ctx = cvs.getContext('2d');
+      const W = cvs.width, H = cvs.height;
+      ctx.clearRect(0, 0, W, H);
+      ctx.strokeStyle = '#1a2030'; ctx.lineWidth = 0.5;
+      for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+      for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+      ctx.font = '16px Orbitron';
+      ctx.fillStyle = '#2a3a4e';
+      ctx.textAlign = 'center';
+      ctx.fillText('Select entities and press START', W / 2, H / 2);
+    }
+
+    // ── Controls ──
+    function btStart() {
+      if (btRunning) return;
+      if (!btBalance) return;
+      const pCls = document.getElementById('btPlayerClass').value;
+      const pLv = parseInt(document.getElementById('btPlayerLevel').value);
+      btPlayer = btCreatePlayerEntity(pCls, pLv);
+      btEnemy = btCreateEnemy();
+      if (!btPlayer || !btEnemy) return;
+      btBullets = [];
+      btDrones = [];
+      btPulses = [];
+      btElapsed = 0;
+      btWinner = null;
+      btRunning = true;
+      btPaused = false;
+      btLastTime = performance.now();
+      document.getElementById('btStartBtn').disabled = true;
+      document.getElementById('btPauseBtn').disabled = false;
+      document.getElementById('btStatWinner').textContent = '-';
+      document.getElementById('btStatTtk').textContent = '-';
+      document.getElementById('btStatWinnerCard').classList.remove('winner');
+      document.getElementById('btStatPlayerDps').textContent = '0';
+      document.getElementById('btStatEnemyDps').textContent = '0';
+      btAnim = requestAnimationFrame(btFrame);
+    }
+
+    function btPause() {
+      btPaused = !btPaused;
+      document.getElementById('btPauseBtn').textContent = btPaused ? 'RESUME' : 'PAUSE';
+      if (!btPaused) { btLastTime = performance.now(); }
+    }
+
+    function btReset() {
+      btRunning = false;
+      btPaused = false;
+      if (btAnim) cancelAnimationFrame(btAnim);
+      btPlayer = null;
+      btEnemy = null;
+      btBullets = [];
+      btDrones = [];
+      btPulses = [];
+      btElapsed = 0;
+      btWinner = null;
+      document.getElementById('btStartBtn').disabled = false;
+      document.getElementById('btPauseBtn').disabled = true;
+      document.getElementById('btPauseBtn').textContent = 'PAUSE';
+      document.getElementById('btStatPlayerDps').textContent = '-';
+      document.getElementById('btStatEnemyDps').textContent = '-';
+      document.getElementById('btStatTtk').textContent = '-';
+      document.getElementById('btStatTime').textContent = '0.0s';
+      document.getElementById('btStatWinner').textContent = '-';
+      document.getElementById('btStatWinnerCard').classList.remove('winner');
+      btDrawIdle();
+    }
+
+    // ── Hook into refresh flow ──
+    const _origRefreshAll = refreshAll;
+    refreshAll = function() {
+      _origRefreshAll();
+      // Fetch balance data once (on first refresh after auth)
+      if (!btBalance) btFetchBalance();
+    };
   </script>
 </body>
 </html>

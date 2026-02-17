@@ -12,9 +12,16 @@ body {
 #startScreen {
   position: fixed; inset: 0;
   display: flex; align-items: center; justify-content: center;
-  background: radial-gradient(ellipse at center, #0f1923 0%, #060a10 100%);
+  background: url('../images/landing-bg.png') center center / cover no-repeat;
   z-index: 100;
 }
+#startScreen::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center, rgba(10,20,30,0.82) 0%, rgba(4,6,10,0.92) 100%);
+  z-index: 0;
+}
+#startScreen > * { position: relative; z-index: 1; }
 .start-container {
   text-align: center;
   max-width: 480px;
@@ -24,7 +31,7 @@ body {
   font-family: 'Orbitron', sans-serif;
   font-weight: 900;
   font-size: 3.5rem;
-  line-height: 1.1;
+  line-height: 1.15;
   color: #e0e6ed;
   text-shadow: 0 0 20px rgba(30,100,255,0.5), 0 0 40px rgba(255,50,80,0.3);
   margin-bottom: 8px;
@@ -36,9 +43,24 @@ body {
   -webkit-text-fill-color: transparent;
 }
 .game-subtitle {
-  color: #6b7a8d;
-  font-size: 0.9rem;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+  letter-spacing: 3px;
   margin-bottom: 32px;
+}
+.game-subtitle .sub-samsung {
+  color: #5a9bff;
+  text-shadow: 0 0 12px rgba(30,100,255,0.6);
+}
+.game-subtitle .sub-vs {
+  color: #4a5568;
+  font-size: 0.85rem;
+  margin: 0 4px;
+}
+.game-subtitle .sub-skhynix {
+  color: #ff6b80;
+  text-shadow: 0 0 12px rgba(255,50,80,0.6);
 }
 
 .input-group {
@@ -104,8 +126,8 @@ body {
 }
 .team-btn.samsung .team-name { color: #1e64ff; }
 .team-btn.skhynix .team-name { color: #ff3250; }
-.team-btn.samsung.selected { border-color: #1e64ff; background: rgba(30,100,255,0.1); }
-.team-btn.skhynix.selected { border-color: #ff3250; background: rgba(255,50,80,0.1); }
+.team-btn.samsung.selected { border-color: #1e64ff; background: rgba(14,24,40,0.95); box-shadow: 0 0 15px rgba(30,100,255,0.25), inset 0 0 20px rgba(30,100,255,0.1); }
+.team-btn.skhynix.selected { border-color: #ff3250; background: rgba(24,14,18,0.95); box-shadow: 0 0 15px rgba(255,50,80,0.25), inset 0 0 20px rgba(255,50,80,0.1); }
 .team-btn:hover { transform: translateY(-2px); }
 
 .play-btn {
@@ -165,6 +187,152 @@ body {
   font-size: 0.85rem;
   color: #ff6b80;
   animation: blink 1s infinite;
+}
+
+/* ─── 게임 시작 가이드 오버레이 ─── */
+#gameGuideOverlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(4, 8, 16, 0.88);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: guideFadeIn 0.4s ease-out;
+}
+#gameGuideOverlay.hidden { display: none; }
+#gameGuideOverlay.fade-out {
+  animation: guideFadeOut 0.3s ease-in forwards;
+}
+@keyframes guideFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes guideFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.guide-panel {
+  background: rgba(10, 14, 23, 0.95);
+  border: 1px solid rgba(74, 122, 173, 0.5);
+  border-radius: 16px;
+  padding: 36px 44px;
+  max-width: 480px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 0 60px rgba(30, 100, 255, 0.15), inset 0 0 30px rgba(30, 100, 255, 0.05);
+  animation: guideSlideUp 0.4s ease-out;
+}
+@keyframes guideSlideUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.guide-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 22px;
+  font-weight: 700;
+  color: #4a9eff;
+  letter-spacing: 4px;
+  margin: 0 0 28px 0;
+  text-shadow: 0 0 20px rgba(74, 158, 255, 0.4);
+}
+
+.guide-items {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.guide-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  text-align: left;
+  padding: 12px 16px;
+  background: rgba(74, 122, 173, 0.08);
+  border-radius: 10px;
+  border: 1px solid rgba(74, 122, 173, 0.15);
+}
+
+.guide-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.guide-text strong {
+  display: block;
+  color: #e0e8f0;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 14px;
+  margin-bottom: 3px;
+}
+.guide-text p {
+  margin: 0;
+  color: #8899aa;
+  font-size: 12px;
+}
+
+.guide-start-btn {
+  font-family: 'Orbitron', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffffff;
+  background: linear-gradient(135deg, #1e64ff, #4a9eff);
+  border: none;
+  border-radius: 8px;
+  padding: 14px 48px;
+  cursor: pointer;
+  letter-spacing: 2px;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 0 20px rgba(30, 100, 255, 0.3);
+}
+.guide-start-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 30px rgba(30, 100, 255, 0.5);
+}
+
+.guide-skip-hint {
+  margin: 12px 0 0;
+  color: #556677;
+  font-size: 11px;
+}
+
+/* ─── 진화 알림 (Evolution Reminder) ─── */
+.evolve-reminder {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 215, 0, 0.15);
+  color: #ffd700;
+  padding: 8px 20px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 215, 0, 0.4);
+  font-size: 13px;
+  font-weight: bold;
+  z-index: 100;
+  pointer-events: none;
+  animation: evolvePulse 1.5s ease-in-out infinite;
+}
+.evolve-reminder.hidden { display: none; }
+@keyframes evolvePulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+/* 리스폰 후 진화 가능 — 강조 깜빡임 */
+.evolve-reminder.evolve-blink {
+  animation: evolveBlink 0.5s ease-in-out 6;
+  border-color: #ffd700;
+  box-shadow: 0 0 12px rgba(255, 215, 0, 0.6);
+  font-size: 15px;
+}
+@keyframes evolveBlink {
+  0%, 100% { opacity: 1; transform: translateX(-50%) scale(1); }
+  50% { opacity: 0.3; transform: translateX(-50%) scale(1.05); }
 }
 
 /* ─── 캔버스 ─── */
@@ -237,11 +405,64 @@ body {
 #deathScreen {
   position: fixed; inset: 0;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(10,5,5,0.85);
+  background: rgba(10,5,5,0.60);
   z-index: 50;
+  pointer-events: none;
 }
 .death-container {
   text-align: center;
+  pointer-events: auto;
+  background: rgba(10,5,5,0.92);
+  border: 1px solid #2a1520;
+  border-radius: 12px;
+  padding: 40px 60px;
+  box-shadow: 0 0 60px rgba(255,50,80,0.15);
+}
+@media (max-width: 1100px) and (min-width: 769px) {
+  #deathScreen { justify-content: flex-start; align-items: flex-end; padding: 20px; }
+  .death-container { max-width: calc(100vw - 380px); }
+}
+/* 모바일 사망 화면: 전체 화면 오버레이 */
+@media (max-width: 768px) {
+  #deathScreen {
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(10,5,5,0.85);
+  }
+  .death-container {
+    width: 100%;
+    max-width: 340px;
+    padding: 24px 20px;
+    box-sizing: border-box;
+  }
+  .death-container h2 {
+    font-size: 1.5rem;
+    margin-bottom: 8px;
+  }
+  .death-container p {
+    font-size: 13px;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
+  #deathKiller {
+    font-size: 13px !important;
+  }
+  #spectateInfo {
+    font-size: 11px !important;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
+  #deathScreen .play-btn {
+    width: 100%;
+    padding: 14px;
+    font-size: 1rem;
+  }
+  #deathScreen .home-btn {
+    width: 100%;
+    padding: 10px;
+    font-size: 0.75rem;
+  }
 }
 .death-container h2 {
   font-family: 'Orbitron', sans-serif;
@@ -1183,4 +1404,49 @@ body {
   .team-btn { width: 100%; }
 }
 
+/* 모바일 랜딩 배경: 세로 이미지 사용 */
+@media (max-width: 768px) {
+  #startScreen {
+    background-image: url('../images/landing-bg-mobile.png');
+  }
+}
+
 .hidden { display: none !important; }
+
+/* Hide stock panel and news by default on mobile */
+@media (max-width: 768px) {
+  #communityHub { display: none !important; }
+  #hudDisclaimer { display: none !important; }
+
+  /* Show community hub only when tab menu is open */
+  body.mobile .tab-menu-open #communityHub { display: block !important; }
+}
+
+.player-stats-display {
+  margin-top: 10px;
+  padding: 8px 16px;
+  background: rgba(10, 14, 23, 0.6);
+  border: 1px solid rgba(58, 95, 138, 0.2);
+  border-radius: 6px;
+  font-size: 11px;
+  color: #6b7a8d;
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.player-stats-display .stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.player-stats-display .stat-value {
+  color: #a0b4c8;
+  font-size: 16px;
+  font-weight: bold;
+}
+.player-stats-display .stat-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}

@@ -53,6 +53,10 @@ class Player {
     // 각 항목: { id, type, label, value, remaining, duration, color, icon }
     this.activeBuffs = [];
 
+    // ── 어시스트 / 복수 시스템 ──
+    this.damageContributors = {};   // { attackerId: { damage, lastTime } }
+    this.revengeTargetId = null;    // 나를 마지막으로 죽인 플레이어 ID
+
     this._applyClassStats();
     this._spawnAt(this.spawnPoint);
   }
@@ -96,8 +100,12 @@ class Player {
       this.level++;
       leveled = true;
       this._applyClassStats();
-      // 진화 레벨 도달 시
+      // Tier 2 진화 레벨 도달 시 (resistor → cap/rep)
       if (this.level >= C.EVOLVE_LEVEL && this.className === 'resistor') {
+        this.evolveReady = true;
+      }
+      // Tier 3 진화 레벨 도달 시 (cap → ind/trans, rep → osc/amp)
+      if (this.level >= C.EVOLVE_LEVEL_2 && (this.className === 'capacitor' || this.className === 'repeater')) {
         this.evolveReady = true;
       }
     }
@@ -106,7 +114,18 @@ class Player {
 
   evolve(newClass) {
     if (!this.evolveReady) return false;
-    if (newClass !== 'capacitor' && newClass !== 'repeater') return false;
+    const targetClassConfig = C.CLASSES[newClass];
+    if (!targetClassConfig) return false;
+
+    // Tier 2 진화 검증 (resistor → capacitor/repeater)
+    if (this.className === 'resistor') {
+      if (newClass !== 'capacitor' && newClass !== 'repeater') return false;
+    }
+    // Tier 3 진화 검증 (evolvesFrom 필드로 검증)
+    else if (targetClassConfig.evolvesFrom !== this.className) {
+      return false;
+    }
+
     this.className = newClass;
     this.evolveReady = false;
     this._applyClassStats();
@@ -157,6 +176,9 @@ class Player {
     this.orbHitTimers = {};
     this.shieldRechargeTimer = 0;
     this.activeBuffs = [];
+    this.lastKilledBy = null;
+    this.damageContributors = {};
+    // revengeTargetId는 유지 (리스폰 후에도 복수 가능)
     // 레벨/XP는 유지, 사망 시 XP 감소는 game.js에서 처리
   }
 
@@ -175,10 +197,13 @@ class Player {
       xpToNext: this.xpToNext(),
       evolveReady: this.evolveReady,
       autoTargetId: this.autoTargetId,
+      // 사망 시 킬러 정보
+      lastKilledBy: this.lastKilledBy || null,
+      revengeTargetId: this.revengeTargetId || null,
     };
-    // 캐패시터 오비탈 + 보호막
-    if (this.className === 'capacitor') {
-      const cls = C.CLASSES.capacitor;
+    // 오비탈 클래스 (capacitor, inductor, transformer) + 보호막
+    const cls = this.getClassConfig();
+    if (cls.attackType === 'orbit') {
       data.orbAngle = this.orbAngle;
       data.orbCount = cls.orbCount;
       data.orbRadius = cls.orbRadius;
@@ -197,6 +222,16 @@ class Player {
         icon: b.icon,
       }));
     }
+    // 포탈 쿨다운 (해당 플레이어 본인 화면에서만 사용)
+    if (this.portalCooldowns && Object.keys(this.portalCooldowns).length > 0) {
+      const now = Date.now();
+      const pcd = {};
+      for (const [portalId, expiresAt] of Object.entries(this.portalCooldowns)) {
+        const remaining = expiresAt - now;
+        if (remaining > 0) pcd[portalId] = remaining;
+      }
+      if (Object.keys(pcd).length > 0) data.portalCooldowns = pcd;
+    }
     return data;
   }
 }
@@ -209,6 +244,8 @@ class Bullet {
     this.team = ownerTeam;
     this.x = x;
     this.y = y;
+    this.originX = x; // 거리 데미지 계산용 (Amplifier)
+    this.originY = y;
     const speed = (opts && opts.speed) || C.BULLET_SPEED;
     this.vx = Math.cos(angle) * speed;
     this.vy = Math.sin(angle) * speed;
@@ -216,14 +253,17 @@ class Bullet {
     this.damage = damage;
     this.lifetime = (opts && opts.lifetime) || C.BULLET_LIFETIME;
     this.alive = true;
+    this.isAmped = (opts && opts.isAmped) || false;
   }
 
   serialize() {
-    return {
+    const data = {
       id: this.id, team: this.team,
       x: Math.round(this.x), y: Math.round(this.y),
       radius: this.radius,
     };
+    if (this.isAmped) data.isAmped = true;
+    return data;
   }
 }
 
@@ -289,6 +329,7 @@ class Monster {
     this.attackCooldown = 0;
     this.alive = true;
     this.lastHitTeam = null;
+    this.damageContributors = {};   // { playerId: damage } — 보스 어시스트용
 
     // 이동 AI
     this.center = bossCenter || { x: 1200, y: 800 };
@@ -323,7 +364,7 @@ class Monster {
 
 // ─── Boss Bullet (보스 전용 발사체) ───
 class BossBullet {
-  constructor(x, y, angle, damage, speed, color) {
+  constructor(x, y, angle, damage, speed, color, bossName) {
     this.id = uid();
     this.x = x;
     this.y = y;
@@ -332,6 +373,7 @@ class BossBullet {
     this.radius = C.BOSS_BULLET_RADIUS;
     this.damage = damage;
     this.color = color;
+    this.bossName = bossName || 'Boss';
     this.alive = true;
     this.lifetime = C.BOSS_BULLET_LIFETIME;
   }

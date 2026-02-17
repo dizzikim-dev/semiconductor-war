@@ -2,10 +2,19 @@
 const Input = (() => {
   const keys = {};
   let joystickInput = { up: false, down: false, left: false, right: false };
+  let _pingCallback = null;
 
   const init = (canvasEl) => {
     window.addEventListener('keydown', (e) => {
       keys[e.code] = true;
+
+      // Ping keys (1-4) — only if chat is not focused
+      if (_pingCallback && (!Chat || !Chat.isInputFocused())) {
+        if (e.key === '1') _pingCallback('attack');
+        if (e.key === '2') _pingCallback('defend');
+        if (e.key === '3') _pingCallback('danger');
+        if (e.key === '4') _pingCallback('retreat');
+      }
     });
     window.addEventListener('keyup', (e) => {
       keys[e.code] = false;
@@ -18,6 +27,10 @@ const Input = (() => {
   // 모바일 조이스틱에서 호출
   const setJoystickInput = (input) => {
     joystickInput = input;
+  };
+
+  const setPingCallback = (fn) => {
+    _pingCallback = fn;
   };
 
   const getInput = () => {
@@ -33,5 +46,5 @@ const Input = (() => {
     };
   };
 
-  return { init, getInput, setJoystickInput };
+  return { init, getInput, setJoystickInput, setPingCallback };
 })();

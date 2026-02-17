@@ -12,7 +12,7 @@
   <div id="startScreen">
     <div class="start-container">
       <h1 class="game-title">SEMICONDUCTOR<br><span>WAR</span></h1>
-      <p class="game-subtitle">반도체 전쟁 — 삼성 vs SK하이닉스</p>
+      <p class="game-subtitle"><span class="sub-samsung">SAMSUNG</span> <span class="sub-vs">vs</span> <span class="sub-skhynix">SK HYNIX</span></p>
 
       <div class="input-group">
         <label for="nameInput">닉네임</label>
@@ -35,12 +35,52 @@
 
       <button id="playBtn" class="play-btn">▶ PLAY</button>
       <p class="controls-hint" id="controlsHint">WASD 이동 · 자동 전투 · E 진화 선택 · Enter 채팅</p>
+      <div id="playerStatsDisplay" class="player-stats-display"></div>
+
     </div>
-    <a href="/admin.html" class="admin-link">ADMIN</a>
   </div>
 
   <!-- 게임 캔버스 -->
   <canvas id="gameCanvas"></canvas>
+
+  <!-- 게임 시작 가이드 오버레이 -->
+  <div id="gameGuideOverlay" class="hidden">
+    <div class="guide-panel">
+      <h2 class="guide-title">MISSION BRIEFING</h2>
+      <div class="guide-items">
+        <div class="guide-item">
+          <span class="guide-icon">🎯</span>
+          <div class="guide-text">
+            <strong>셀을 점령하여 영토 점수를 확보하세요</strong>
+            <p>더 많은 셀을 가진 팀이 승리!</p>
+          </div>
+        </div>
+        <div class="guide-item">
+          <span class="guide-icon">💡</span>
+          <div class="guide-text">
+            <strong>자동 조준 &amp; 발사</strong>
+            <p>WASD 이동에만 집중하세요!</p>
+          </div>
+        </div>
+        <div class="guide-item">
+          <span class="guide-icon">⚡</span>
+          <div class="guide-text">
+            <strong>레벨 2 달성 시 E키로 진화</strong>
+            <p>CAPACITOR(방어형) 또는 REPEATER(공격형) 선택</p>
+          </div>
+        </div>
+        <div class="guide-item">
+          <span class="guide-icon">👾</span>
+          <div class="guide-text">
+            <strong>보스 몬스터 처치 → 팀 버프 획득</strong>
+            <p>막타를 친 팀에게 30초간 버프!</p>
+          </div>
+        </div>
+      </div>
+      <button id="guideStartBtn" class="guide-start-btn">전투 시작</button>
+      <p class="guide-skip-hint">아무 키를 눌러도 시작됩니다</p>
+    </div>
+  </div>
 
   <!-- HUD -->
   <div id="hud" class="hidden">
@@ -49,38 +89,20 @@
       <div id="hudScore"></div>
       <div id="hudMapName"></div>
     </div>
-    <div id="hudLeaderboard"></div>
-    <!-- Community Hub: Stock + Chat + News -->
-    <div id="communityHub" class="hidden">
-      <div id="hubResizeHandle" class="hub-resize-handle"></div>
-      <div id="hudStockPanel" class="hub-stock"></div>
-      <div class="hub-mode-bar">
-        <button id="hubModeToggle" class="hub-mode-btn">
-          <span id="hubModeIcon">&#9664;</span>
-          <span id="hubModeLabel">OPEN</span>
-          <span id="hubUnreadBadge" class="hub-unread hidden">0</span>
-        </button>
-      </div>
-      <div class="hub-tab-bar">
-        <button class="hub-tab active" data-tab="chat">CHAT</button>
-        <button class="hub-tab" data-tab="news">NEWS</button>
-      </div>
-      <div id="hubChatContent" class="hub-tab-content">
-        <div id="hubMessages" class="hub-messages"></div>
-        <div class="hub-input-row">
-          <input type="text" id="hubChatInput" class="hub-chat-input" placeholder="메시지... (Enter)" maxlength="120" autocomplete="off">
-          <button id="hubChatSend" class="hub-send-btn">&#x27A4;</button>
-        </div>
-      </div>
-      <div id="hubNewsContent" class="hub-tab-content hidden">
-        <div id="newsBody" class="hub-news-body"></div>
+    <div id="gameUI">
+      <div id="evolveReminder" class="evolve-reminder hidden">
+        ⚡ E키를 눌러 진화하세요!
       </div>
     </div>
+    <div id="hudLeaderboard"></div>
     <div id="hudKillFeed"></div>
     <div id="hudZoneWarn" class="hidden"></div>
     <div id="hudEventBanner" class="hidden"></div>
     <div id="hudActiveEvents" class="hidden"></div>
     <div id="hudBuffPanel" class="hidden"></div>
+    <div id="hudPingGuide" style="position:absolute; bottom:80px; right:10px; font-size:9px; color:rgba(160,180,200,0.6); font-family:'Share Tech Mono'; pointer-events:none;">
+      1:⚔ 2:🛡 3:⚠ 4:←
+    </div>
     <div id="hudDisclaimer"></div>
 
     <!-- Mobile Controls (hidden on PC) -->
@@ -121,21 +143,72 @@
   <div id="evolveOverlay" class="hidden">
     <div class="evolve-container">
       <h2 class="evolve-title">EVOLUTION</h2>
-      <p class="evolve-subtitle">클래스를 선택하세요</p>
-      <div class="evolve-buttons">
-        <button id="evolveCapacitor" class="evolve-btn capacitor-btn">
+      <p class="evolve-subtitle" id="evolveSubtitle">클래스를 선택하세요</p>
+      <div class="evolve-buttons" id="evolveButtons">
+        <button id="evolveCapacitor" class="evolve-btn capacitor-btn tier2">
           <span class="evolve-class-name">CAPACITOR</span>
           <span class="evolve-class-icon">&#x2B22;</span>
           <span class="evolve-class-desc">근접 탱커 — 회전 오비탈 공격 + 보호막</span>
-          <span class="evolve-class-stats">HP 250 · Shield 80 · Orbit DMG 25</span>
+          <span class="evolve-class-stats">HP 250 · Shield 80 · Orbit DMG 18</span>
         </button>
-        <button id="evolveRepeater" class="evolve-btn repeater-btn">
+        <button id="evolveRepeater" class="evolve-btn repeater-btn tier2">
           <span class="evolve-class-name">REPEATER</span>
           <span class="evolve-class-icon">&#x25B6;</span>
           <span class="evolve-class-desc">원거리 기동 — 빠른 연사 + 높은 속도</span>
-          <span class="evolve-class-stats">HP 90 · DMG 7 · Range 280</span>
+          <span class="evolve-class-stats">HP 110 · DMG 7 · Range 280</span>
+        </button>
+        <button id="evolveInductor" class="evolve-btn inductor-btn tier3-cap hidden">
+          <span class="evolve-class-name">INDUCTOR</span>
+          <span class="evolve-class-icon">&#x26A1;</span>
+          <span class="evolve-class-desc">자기장 조작 — 광역 탱커 (4궤도 + 자기 인력)</span>
+          <span class="evolve-class-stats">HP 280 · 4 Orbs · Magnetic Pull</span>
+        </button>
+        <button id="evolveTransformer" class="evolve-btn transformer-btn tier3-cap hidden">
+          <span class="evolve-class-name">TRANSFORMER</span>
+          <span class="evolve-class-icon">&#x2600;</span>
+          <span class="evolve-class-desc">에너지 변환 — 서포터 (아군 버프 오라 + 강화 보호막)</span>
+          <span class="evolve-class-stats">HP 300 · Shield 100 · Ally Aura</span>
+        </button>
+        <button id="evolveOscillator" class="evolve-btn oscillator-btn tier3-rep hidden">
+          <span class="evolve-class-name">OSCILLATOR</span>
+          <span class="evolve-class-icon">&#x223F;</span>
+          <span class="evolve-class-desc">파동 간섭 — 버스트 딜러 (3연발 + 빠른 기동)</span>
+          <span class="evolve-class-stats">HP 130 · 3-Burst · SPD 240</span>
+        </button>
+        <button id="evolveAmplifier" class="evolve-btn amplifier-btn tier3-rep hidden">
+          <span class="evolve-class-name">AMPLIFIER</span>
+          <span class="evolve-class-icon">&#x25C6;</span>
+          <span class="evolve-class-desc">신호 증폭 — 스나이퍼 (원거리 고데미지 + 거리 비례 증폭)</span>
+          <span class="evolve-class-stats">HP 100 · Range 400 · 2x DMG</span>
         </button>
       </div>
+    </div>
+  </div>
+
+  <!-- Community Hub: Stock + Chat + News (outside #hud for z-index above death screen) -->
+  <div id="communityHub" class="hidden">
+    <div id="hubResizeHandle" class="hub-resize-handle"></div>
+    <div id="hudStockPanel" class="hub-stock"></div>
+    <div class="hub-mode-bar">
+      <button id="hubModeToggle" class="hub-mode-btn">
+        <span id="hubModeIcon">&#9664;</span>
+        <span id="hubModeLabel">OPEN</span>
+        <span id="hubUnreadBadge" class="hub-unread hidden">0</span>
+      </button>
+    </div>
+    <div class="hub-tab-bar">
+      <button class="hub-tab active" data-tab="chat">CHAT</button>
+      <button class="hub-tab" data-tab="news">NEWS</button>
+    </div>
+    <div id="hubChatContent" class="hub-tab-content">
+      <div id="hubMessages" class="hub-messages"></div>
+      <div class="hub-input-row">
+        <input type="text" id="hubChatInput" class="hub-chat-input" placeholder="메시지... (Enter)" maxlength="120" autocomplete="off">
+        <button id="hubChatSend" class="hub-send-btn">&#x27A4;</button>
+      </div>
+    </div>
+    <div id="hubNewsContent" class="hub-tab-content hidden">
+      <div id="newsBody" class="hub-news-body"></div>
     </div>
   </div>
 
@@ -143,8 +216,10 @@
   <div id="deathScreen" class="hidden">
     <div class="death-container">
       <h2>PROCESS TERMINATED</h2>
+      <p id="deathKiller" style="color: #ff6b6b; font-size: 14px; margin: 5px 0;"></p>
       <p id="deathInfo"></p>
       <p id="deathTimer"></p>
+      <p id="spectateInfo" class="hidden" style="color: #a0b4c8; font-size: 12px; margin-top: 8px;"></p>
       <button id="respawnBtn" class="play-btn hidden">▶ RESPAWN</button>
       <button id="homeBtn" class="home-btn">⌂ HOME</button>
     </div>
@@ -167,6 +242,7 @@
   <script src="js/hud.js"></script>
   <script src="js/chat.js"></script>
   <script src="js/mobile.js"></script>
+  <script src="js/sound.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

@@ -22,6 +22,12 @@ const TEAM_COLORS = {
 // Fab(기지) 반경 — 스폰 산포 범위
 const FAB_RADIUS = 120;
 
+// ─── 스폰 보호 존 (Spawn Protection Zone) ───
+const SPAWN_ZONE_RADIUS = 150;         // 보호 존 반경 (px) — FAB_RADIUS보다 약간 큼
+const SPAWN_ZONE_DAMAGE = 30;          // 적이 들어올 시 초당 데미지 (DPS)
+const SPAWN_ZONE_KNOCKBACK = 300;      // 적 밀어내기 속도 (px/s)
+const SPAWN_ZONE_INVULN_REFRESH = 500; // 아군 존 내 무적 시간 갱신 (ms)
+
 // ─── 플레이어 (기본값, 클래스에 의해 오버라이드) ───
 const PLAYER_RADIUS = 20;
 const PLAYER_SPEED = 200;           // px/s
@@ -49,7 +55,7 @@ const CLASSES = {
     hp: 250,
     speed: 150,
     attackRange: 140,       // 오토타겟 범위 (오비탈에는 미사용)
-    attackDamage: 25,       // 오브 1회 히트 데미지
+    attackDamage: 18,       // 오브 1회 히트 데미지 (25→18 밸런스 패치)
     attackCooldown: 0,      // 오비탈은 쿨다운 없음 (hitCooldown으로 제어)
     bulletSpeed: 0,
     bulletRadius: 0,
@@ -65,11 +71,12 @@ const CLASSES = {
     shieldMax: 80,          // 최대 보호막
     shieldRechargeDelay: 5000, // 보호막 소진 후 재충전 대기 (ms)
     shieldRechargeRate: 20, // 초당 보호막 회복량
+    evolvesFrom: 'resistor',
     description: '에너지 축적 후 방출 — 근접 탱커 (오비탈 공격 + 보호막)',
   },
   repeater: {
     name: 'REPEATER',
-    hp: 90,
+    hp: 110,
     speed: 260,
     attackRange: 280,       // 셀 터렛(320) 미만으로 하향
     attackDamage: 7,
@@ -79,27 +86,128 @@ const CLASSES = {
     bulletLifetime: 1800,
     attackType: 'single',
     cellDmgBonus: 0,
+    evolvesFrom: 'resistor',
     description: '신호 재생성/중계 — 원거리 기동',
+  },
+  inductor: {
+    name: 'INDUCTOR',
+    hp: 280,
+    speed: 130,
+    attackRange: 160,
+    attackDamage: 17,       // 22→17 너프 (-22.7%) — DPS 과강 조정
+    attackCooldown: 0,
+    bulletSpeed: 0,
+    bulletRadius: 0,
+    bulletLifetime: 0,
+    attackType: 'orbit',
+    orbCount: 4,            // 4 orbs (up from 3)
+    orbRadius: 110,         // wider orbit
+    orbSpeed: 2.2,          // slightly slower rotation
+    orbSize: 16,            // bigger orbs
+    orbHitCooldown: 750,    // 600→750 너프 (+25%) — 재히트 간격 증가
+    cellDmgBonus: 0.30,
+    // Magnetic pull: enemies in range are pulled toward player
+    magneticPull: true,
+    magneticRange: 180,     // pull range
+    magneticForce: 32,      // 40→32 너프 (-20%) — 도주 가능성 증가
+    shieldMax: 60,
+    shieldRechargeDelay: 6000,
+    shieldRechargeRate: 15,
+    evolvesFrom: 'capacitor',
+    description: '자기장 조작 — 광역 탱커 (4궤도 + 자기 인력)',
+  },
+  transformer: {
+    name: 'TRANSFORMER',
+    hp: 300,
+    speed: 140,
+    attackRange: 140,
+    attackDamage: 15,       // CAPACITOR(18)보다 약간 낮음 (오라로 보상)
+    attackCooldown: 0,
+    bulletSpeed: 0,
+    bulletRadius: 0,
+    bulletLifetime: 0,
+    attackType: 'orbit',
+    orbCount: 3,            // CAPACITOR와 동일 (기본기 유지, 2→3 복원)
+    orbRadius: 80,
+    orbSpeed: 3.0,
+    orbSize: 12,
+    orbHitCooldown: 700,    // CAPACITOR와 동일 (800→700 복원)
+    cellDmgBonus: 0.15,
+    // Support aura: allies within range get buffs
+    aura: true,
+    auraRange: 200,
+    auraDmgBoost: 0.15,    // +15% damage to nearby allies
+    auraRegen: 2.5,         // 2→2.5 버프 (+25%) — 자가힐 포함 생존력 향상
+    shieldMax: 100,
+    shieldRechargeDelay: 4000,
+    shieldRechargeRate: 25,
+    evolvesFrom: 'capacitor',
+    description: '에너지 변환 — 서포터 (아군 버프 오라 + 강화 보호막)',
+  },
+  oscillator: {
+    name: 'OSCILLATOR',
+    hp: 130,
+    speed: 240,
+    attackRange: 280,       // REPEATER와 동일
+    attackDamage: 7,        // REPEATER와 동일 (기본기 유지)
+    attackCooldown: 160,    // REPEATER(150)보다 약간 느림 (확산 밸런스)
+    bulletSpeed: 700,       // REPEATER와 동일
+    bulletRadius: 3,
+    bulletLifetime: 1500,
+    attackType: 'single',   // REPEATER와 동일 (기본기 유지)
+    // Tier 3 추가 요소: 확산탄 (스트라이커즈 1945 패턴)
+    multiShot: 3,           // 매 발 3발 동시 발사 (메인 + 좌우 확산)
+    spreadAngle: 0.15,      // 확산 각도 (rad, ±8.6°)
+    cellDmgBonus: 0.10,
+    evolvesFrom: 'repeater',
+    description: '파동 간섭 — 확산 딜러 (REPEATER 연사 + 3방향 확산탄)',
+  },
+  amplifier: {
+    name: 'AMPLIFIER',
+    hp: 100,
+    speed: 200,
+    attackRange: 350,       // REPEATER(280)보다 긴 사거리
+    attackDamage: 7,        // REPEATER와 동일 (기본기 유지)
+    attackCooldown: 200,    // REPEATER(150)보다 약간 느림
+    bulletSpeed: 800,
+    bulletRadius: 4,
+    bulletLifetime: 2000,
+    attackType: 'single',   // REPEATER와 동일 (기본기 유지)
+    // Tier 3 추가 요소: 증폭탄 (스트라이커즈 1945 패턴)
+    ampedEvery: 4,          // 4발째마다 증폭탄 발사
+    ampedDmgMultiplier: 3.0, // 증폭탄 = 3배 데미지 (21)
+    ampedBulletRadius: 6,   // 증폭탄 시각 크기 (큰 탄환)
+    cellDmgBonus: 0.10,
+    evolvesFrom: 'repeater',
+    description: '신호 증폭 — 스나이퍼 (REPEATER 연사 + 주기적 증폭탄)',
   },
 };
 
 // ─── 레벨링 / 진화 ───
-const EVOLVE_LEVEL = 2;             // 이 레벨에서 진화 선택 (테스트용 낮은 값)
+const EVOLVE_LEVEL = 2;             // Tier 2 진화 레벨 (resistor → capacitor/repeater)
+const EVOLVE_LEVEL_2 = 5;           // Tier 3 진화 레벨 (cap → ind/trans, rep → osc/amp)
 const MAX_LEVEL = 20;
-const XP_PER_LEVEL = 5;            // 레벨업 필요 XP = level * XP_PER_LEVEL (테스트용 낮은 값)
+const XP_PER_LEVEL = 20;           // 레벨업 필요 XP = level * XP_PER_LEVEL
 const XP_REWARD = {
   playerKill: 50,
-  minionKill: 10,                  // 미니언 1마리 = 즉시 레벨업 (테스트용)
+  minionKill: 5,                   // 10→5 너프 — 2마리=Tier2 극단적 불균형 수정
   cellDestroy: 30,
   cellCapture: 20,
-  monsterKill: 40,
+  monsterKill: 60,                 // 40→60 — 보스 라스트히트 보상 강화
+  assist: 25,                      // 어시스트 XP (데미지 기여 보상)
+  revenge: 30,                     // 복수 킬 보너스 XP
+  bossAssist: 20,                  // 보스 어시스트 XP
 };
+
+// ─── 어시스트 / 복수 시스템 ───
+const ASSIST_THRESHOLD = 0.20;       // 최대 HP의 20% 이상 데미지 기여 시 어시스트 인정
+const DAMAGE_TRACKER_EXPIRE = 15000; // 데미지 기록 유효 시간 (15초)
 const LEVEL_GROWTH = {
   hp: 0.08,                         // 레벨당 HP +8%
   damage: 0.05,                     // 레벨당 데미지 +5%
   speed: 0.01,                      // 레벨당 속도 +1%
 };
-const XP_LOSS_ON_DEATH = 0.5;      // 사망 시 현재 레벨 XP의 50% 손실
+const XP_LOSS_ON_DEATH = 0.25;     // 사망 시 현재 레벨 XP의 25% 손실
 
 // ─── 오토 타겟팅 ───
 const AUTO_TARGET_INTERVAL = 200;   // ms — 타겟 재평가 간격
@@ -149,7 +257,7 @@ const MONSTER_TYPES = [
     attackStyle: 'spray',  attackDamage: 12, attackCooldown: 1800, bulletCount: 3, spreadAngle: 0.4, hp: 500 },
   { name: 'Apple',   buff: 'spd',   value: 0.25, color: '#a2aaad', label: 'SPD +25%',
     attackStyle: 'sniper', attackDamage: 30, attackCooldown: 2500, bulletSpeed: 500, hp: 400 },
-  { name: 'TSMC',    buff: 'dmg',   value: 0.50, color: '#c4001a', label: 'DMG +50%',
+  { name: 'TSMC',    buff: 'dmg',   value: 0.30, color: '#c4001a', label: 'DMG +30%',
     attackStyle: 'drone',  attackDamage: 0,  attackCooldown: 3000, droneCount: 2, maxDrones: 4, hp: 600 },
   { name: 'Google',  buff: 'regen', value: 2,    color: '#4285f4', label: 'HP REGEN',
     attackStyle: 'pulse',  attackDamage: 20, attackCooldown: 3500, pulseRadius: BOSS_PULSE_RADIUS, hp: 550 },
@@ -202,7 +310,7 @@ const BOT_REACTION_TIME = 300;      // ms
 const CELL_MAX_HP = 1200;
 const CELL_RADIUS = 24;              // 터렛 본체 반경 (충돌/렌더링)
 const CELL_ATTACK_RANGE = 320;       // 자동공격 사거리 (px)
-const CELL_ATTACK_DAMAGE = 55;       // 발사 데미지
+const CELL_ATTACK_DAMAGE = 45;       // 발사 데미지 (55→45 REPEATER 보호)
 const CELL_ATTACK_COOLDOWN = 900;    // 발사 간격 (ms)
 const CELL_CAPTURE_RADIUS = 180;     // 점령 존 반경 (px)
 const CELL_CAPTURE_TIME = 4000;      // 점령 시작까지 대기 시간 (ms)
@@ -353,8 +461,10 @@ module.exports = {
   SERVER_PORT, TICK_RATE, TICK_INTERVAL, SNAPSHOT_RATE, SNAPSHOT_INTERVAL,
   MAP_WIDTH, MAP_HEIGHT,
   TEAM, TEAM_COLORS, FAB_RADIUS,
+  SPAWN_ZONE_RADIUS, SPAWN_ZONE_DAMAGE, SPAWN_ZONE_KNOCKBACK, SPAWN_ZONE_INVULN_REFRESH,
   PLAYER_RADIUS, PLAYER_SPEED, PLAYER_HP, PLAYER_RESPAWN_DELAY,
-  CLASSES, EVOLVE_LEVEL, MAX_LEVEL, XP_PER_LEVEL, XP_REWARD, LEVEL_GROWTH, XP_LOSS_ON_DEATH,
+  CLASSES, EVOLVE_LEVEL, EVOLVE_LEVEL_2, MAX_LEVEL, XP_PER_LEVEL, XP_REWARD, LEVEL_GROWTH, XP_LOSS_ON_DEATH,
+  ASSIST_THRESHOLD, DAMAGE_TRACKER_EXPIRE,
   AUTO_TARGET_INTERVAL, AUTO_TARGET_PRIORITY,
   BULLET_SPEED: 500, BULLET_RADIUS: 4, BULLET_LIFETIME: 1500,
   MINION_SPAWN_INTERVAL, MINION_SPAWN_COUNT, MINION_HP, MINION_SPEED,

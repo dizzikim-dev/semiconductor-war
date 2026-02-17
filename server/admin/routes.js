@@ -259,6 +259,49 @@ function createAdminRouter(getEventEngine, marketDataService, opts = {}) {
     res.json(userDataStore.getStats());
   });
 
+  // ── 밸런스 데이터 (테스트 모드용) ──
+
+  // GET /api/admin/balance-data — 전체 밸런스 상수를 JSON으로 반환
+  router.get('/balance-data', (req, res) => {
+    res.json({
+      classes: C.CLASSES,
+      levelGrowth: C.LEVEL_GROWTH,
+      maxLevel: C.MAX_LEVEL,
+      monsterTypes: C.MONSTER_TYPES,
+      monsterRadius: C.MONSTER_RADIUS,
+      bossBulletSpeed: C.BOSS_BULLET_SPEED,
+      bossBulletRadius: C.BOSS_BULLET_RADIUS,
+      bossBulletLifetime: C.BOSS_BULLET_LIFETIME,
+      bossDroneSpeed: C.BOSS_DRONE_SPEED,
+      bossDroneHp: C.BOSS_DRONE_HP,
+      bossDroneRadius: C.BOSS_DRONE_RADIUS,
+      bossDroneDamage: C.BOSS_DRONE_DAMAGE,
+      bossDroneLifetime: C.BOSS_DRONE_LIFETIME,
+      bossPulseRadius: C.BOSS_PULSE_RADIUS,
+      neutralMobTypes: C.NEUTRAL_MOB_TYPES,
+      cellBalance: {
+        maxHp: C.CELL_MAX_HP,
+        radius: C.CELL_RADIUS,
+        attackRange: C.CELL_ATTACK_RANGE,
+        attackDamage: C.CELL_ATTACK_DAMAGE,
+        attackCooldown: C.CELL_ATTACK_COOLDOWN,
+        overheatChargeRate: C.CELL_OVERHEAT_CHARGE_RATE,
+        overheatDecayRate: C.CELL_OVERHEAT_DECAY_RATE,
+        overheatThreshold: C.CELL_OVERHEAT_THRESHOLD,
+        overheatMinCooldown: C.CELL_OVERHEAT_MIN_COOLDOWN,
+      },
+      minionStats: {
+        hp: C.MINION_HP,
+        speed: C.MINION_SPEED,
+        damage: C.MINION_DAMAGE,
+        attackRange: C.MINION_ATTACK_RANGE,
+        attackCooldown: C.MINION_ATTACK_COOLDOWN,
+        radius: C.MINION_RADIUS,
+      },
+      playerRadius: C.PLAYER_RADIUS,
+    });
+  });
+
   return router;
 }
 

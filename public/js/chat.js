@@ -77,11 +77,11 @@ const Chat = (() => {
     window.addEventListener('mouseup', onResizeEnd);
 
     // Socket — remove old listeners to prevent duplicates on re-join
-    socket.off('chat:message', onMessage);
+    socket.off('chat:message');
     socket.off('chat:error');
-    socket.off('chat:history', onHistory);
-    socket.off('chat:deleted', onDeleted);
-    socket.off('chat:cleared', onCleared);
+    socket.off('chat:history');
+    socket.off('chat:deleted');
+    socket.off('chat:cleared');
     socket.on('chat:message', onMessage);
     socket.on('chat:error', () => {});
     socket.on('chat:history', onHistory);
@@ -300,12 +300,11 @@ const Chat = (() => {
   };
   const isOpen = () => mode === 'community';
 
-  // Auto-expand on death / round end
+  // Track alive state (no auto-expand on death)
   const setPlayerAlive = (playerAlive) => {
     if (!hub) return;
-    if (!playerAlive && !pinnedCommunity) {
-      setCommunity();
-    } else if (playerAlive && !pinnedCommunity && mode === 'community') {
+    // Collapse back to combat when respawning, unless user pinned it open
+    if (playerAlive && !pinnedCommunity && mode === 'community') {
       setCombat();
     }
   };

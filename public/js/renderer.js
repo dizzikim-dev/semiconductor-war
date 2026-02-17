@@ -12,6 +12,10 @@ const Renderer = (() => {
     resistor: '#a0aec0',
     capacitor: '#fbbf24',
     repeater: '#34d399',
+    inductor: '#a855f7',    // Purple (magnetic)
+    transformer: '#10b981', // Green (support)
+    oscillator: '#06b6d4',  // Cyan (burst)
+    amplifier: '#ef4444',   // Red (sniper)
   };
 
   const particles = [];
@@ -24,6 +28,19 @@ const Renderer = (() => {
   const ghostHoldTimers = {};     // { playerId: ms remaining }
   let lastRenderTs = 0;
   let renderDt = 0;               // 초 단위
+
+  // Q-4: 화면 테두리 글로우 효과
+  let screenGlow = null; // { color, startTime, duration }
+
+  // Q-5: 복수 대상 ID (미니맵 하이라이트)
+  let _revengeTargetId = null;
+
+  // 플로팅 텍스트 (킬/XP/레벨업/아이템 획득 피드백)
+  const _floatingTexts = [];
+
+  const addFloatingText = (text, x, y, color = '#ffd700') => {
+    _floatingTexts.push({ text, x, y, color, alpha: 1, vy: -40, life: 1.2 });
+  };
 
   const init = (canvasEl) => {
     canvas = canvasEl;
@@ -76,7 +93,7 @@ const Renderer = (() => {
         drawWaferRingMap(currentMapConfig, state);
       }
       drawObstacles(currentMapConfig.obstacles);
-      drawPortals(currentMapConfig.portals, currentMapConfig.portalRadius);
+      drawPortals(currentMapConfig.portals, currentMapConfig.portalRadius, me);
       if (currentMapConfig.connectors) drawConnectors(currentMapConfig.connectors, currentMapConfig);
     }
 
@@ -92,13 +109,48 @@ const Renderer = (() => {
     if (state.bossDrones) drawBossDrones(state.bossDrones);
     drawBullets(state.bullets);
     drawPulseEffects();
+    if (state.pings && me) drawPings(state.pings, me.team);
     drawPlayers(state.players, myId, state.teamBuffs);
     drawMapBorder(mapW, mapH);
 
+    // ── 적 스폰 존 경고 (Enemy Spawn Zone Warning) ──
+    if (me && currentMapConfig && currentMapConfig.teamSpawns) {
+      const spawnZoneRadius = currentMapConfig.spawnZoneRadius || 150;
+      for (const [team, spawn] of Object.entries(currentMapConfig.teamSpawns)) {
+        if (team === me.team) continue; // 아군 스폰은 건너뛰기
+        const dx = me.x - spawn.x;
+        const dy = me.y - spawn.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < spawnZoneRadius) {
+          // 적 스폰 존 내부에 있음 → 위험 표시
+          const enemyColor = TEAM_COLORS[team];
+          ctx.save();
+          ctx.globalAlpha = 0.4;
+          ctx.strokeStyle = enemyColor;
+          ctx.lineWidth = 3;
+          ctx.setLineDash([12, 8]);
+          ctx.beginPath();
+          ctx.arc(spawn.x, spawn.y, spawnZoneRadius, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          // 위험 아이콘 (스폰 중심에)
+          ctx.globalAlpha = 0.6 + Math.sin(Date.now() / 200) * 0.15; // 깜빡임
+          ctx.font = 'bold 18px Share Tech Mono';
+          ctx.fillStyle = enemyColor;
+          ctx.textAlign = 'center';
+          ctx.fillText('⚠ DANGER ⚠', spawn.x, spawn.y - spawnZoneRadius - 15);
+          ctx.restore();
+        }
+      }
+    }
+
     ctx.restore();
 
+    drawFloatingTexts(renderDt);
     updateAndDrawParticles();
     drawMinimap(state, myId, mapW, mapH);
+    drawScreenGlow();         // Q-4: 보스 킬 테두리 글로우
 
     // Educational tooltips (screen-space, after restore)
     if (typeof Tooltips !== 'undefined') {
@@ -520,6 +572,7 @@ const Renderer = (() => {
   // 스폰 영역 — IC 패키지 기호
   const drawSpawnAreas = (mc) => {
     if (!mc || !mc.teamSpawns) return;
+    const spawnZoneRadius = mc.spawnZoneRadius || 150;
     for (const [team, pos] of Object.entries(mc.teamSpawns)) {
       const color = TEAM_COLORS[team];
       const chipW = 160, chipH = 90;
@@ -533,6 +586,23 @@ const Renderer = (() => {
       ctx.beginPath();
       ctx.arc(0, 0, 120, 0, Math.PI * 2);
       ctx.fill();
+
+      // ── 스폰 보호 존 경계 (Spawn Protection Zone) ──
+      ctx.globalAlpha = 0.12;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.arc(0, 0, spawnZoneRadius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // 경고 텍스트 (적에게만 의미있음)
+      ctx.globalAlpha = 0.3;
+      ctx.font = '7px Share Tech Mono';
+      ctx.fillStyle = color;
+      ctx.textAlign = 'center';
+      ctx.fillText('⚠ PROTECTED ZONE', 0, -spawnZoneRadius + 10);
 
       // IC 칩 본체 (직사각형)
       ctx.globalAlpha = 0.15;
@@ -862,14 +932,20 @@ const Renderer = (() => {
   };
 
   // 포탈 — Via hole (회로 기호 스타일)
-  const drawPortals = (portals, portalRadius) => {
+  const drawPortals = (portals, portalRadius, me) => {
     if (!portals || portals.length === 0) return;
     const r = portalRadius || 28;
+    // 내 쿨다운 정보 (본인만 보임)
+    const myCooldowns = (me && me.portalCooldowns) || {};
+
     for (const p of portals) {
+      const cd = myCooldowns[p.id] || 0; // 남은 ms
+      const isCooling = cd > 0;
+
       ctx.save();
-      // 외부 글로우 (층간 연결 에너지)
-      ctx.globalAlpha = 0.1;
-      ctx.fillStyle = '#00ffcc';
+      // 외부 글로우 (층간 연결 에너지) — 쿨다운 중이면 어둡게
+      ctx.globalAlpha = isCooling ? 0.04 : 0.1;
+      ctx.fillStyle = isCooling ? '#ff6666' : '#00ffcc';
       ctx.beginPath();
       ctx.arc(p.x, p.y, r * 2, 0, Math.PI * 2);
       ctx.fill();
@@ -880,22 +956,22 @@ const Renderer = (() => {
       ctx.beginPath();
       ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#00ffcc';
+      ctx.strokeStyle = isCooling ? '#ff6666' : '#00ffcc';
       ctx.lineWidth = 2.5;
-      ctx.globalAlpha = 0.7;
+      ctx.globalAlpha = isCooling ? 0.4 : 0.7;
       ctx.stroke();
 
       // 내부 원 (via hole)
-      ctx.globalAlpha = 0.5;
-      ctx.strokeStyle = '#00ffcc';
+      ctx.globalAlpha = isCooling ? 0.25 : 0.5;
+      ctx.strokeStyle = isCooling ? '#ff6666' : '#00ffcc';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.arc(p.x, p.y, r * 0.5, 0, Math.PI * 2);
       ctx.stroke();
 
       // 십자 해칭 (via contact pattern)
-      ctx.globalAlpha = 0.35;
-      ctx.strokeStyle = '#00ffcc';
+      ctx.globalAlpha = isCooling ? 0.15 : 0.35;
+      ctx.strokeStyle = isCooling ? '#ff6666' : '#00ffcc';
       ctx.lineWidth = 1;
       const hr = r * 0.45;
       ctx.beginPath();
@@ -908,8 +984,8 @@ const Renderer = (() => {
       ctx.stroke();
 
       // 중앙 점 (contact)
-      ctx.globalAlpha = 0.6;
-      ctx.fillStyle = '#00ffcc';
+      ctx.globalAlpha = isCooling ? 0.3 : 0.6;
+      ctx.fillStyle = isCooling ? '#ff6666' : '#00ffcc';
       ctx.beginPath();
       ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
       ctx.fill();
@@ -917,10 +993,36 @@ const Renderer = (() => {
       // 레이어 라벨
       ctx.globalAlpha = 0.45;
       ctx.font = '7px Share Tech Mono';
-      ctx.fillStyle = '#00ffcc';
+      ctx.fillStyle = isCooling ? '#ff6666' : '#00ffcc';
       ctx.textAlign = 'center';
       ctx.fillText('M1↔M2', p.x, p.y - r - 6);
       ctx.fillText('VIA', p.x, p.y + r + 10);
+
+      // ── 쿨다운 아크 + 타이머 (본인에게만 표시) ──
+      if (isCooling) {
+        const cooldownTotal = p.cooldown || 8000;
+        const ratio = Math.min(cd / cooldownTotal, 1);
+
+        // 쿨다운 아크 (시계 방향으로 남은 시간 표시)
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = '#ff4444';
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        const startAngle = -Math.PI / 2;
+        ctx.arc(p.x, p.y, r + 4, startAngle, startAngle + Math.PI * 2 * ratio);
+        ctx.closePath();
+        ctx.fill();
+
+        // 남은 초수 표시
+        const sec = Math.ceil(cd / 1000);
+        ctx.globalAlpha = 0.9;
+        ctx.font = 'bold 11px Share Tech Mono';
+        ctx.fillStyle = '#ff6666';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${sec}s`, p.x, p.y);
+      }
+
       ctx.restore();
     }
   };
@@ -1160,6 +1262,48 @@ const Renderer = (() => {
         ctx.stroke();
       }
 
+      // ── 오버히트 경고 오버레이 ──
+      if (oh >= 0.6 && !isDestroyed) {
+        const ohIntensity = (oh - 0.6) / 0.4; // 0 to 1
+        const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 150);
+
+        // 1. Red/orange pulsing fill over turret
+        ctx.globalAlpha = (0.15 + 0.2 * ohIntensity) * pulse;
+        ctx.fillStyle = oh >= 0.85 ? '#ff2040' : '#ff6b00';
+        ctx.beginPath();
+        ctx.arc(0, 0, r + 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 2. Warning triangle icon — 터렛 중앙에 겹쳐서 표시
+        const triSize = 10 + 6 * ohIntensity;
+        ctx.globalAlpha = 0.75 + 0.25 * pulse;
+        ctx.fillStyle = '#ff2040';
+        ctx.beginPath();
+        ctx.moveTo(0, -triSize);
+        ctx.lineTo(-triSize * 0.866, triSize * 0.5);
+        ctx.lineTo(triSize * 0.866, triSize * 0.5);
+        ctx.closePath();
+        ctx.fill();
+        // Exclamation mark inside triangle
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${10 + 4 * ohIntensity}px Share Tech Mono`;
+        ctx.textAlign = 'center';
+        ctx.fillText('!', 0, triSize * 0.25);
+
+        // 3. Heat wave rings (expanding outward)
+        const time = Date.now();
+        for (let i = 0; i < 2; i++) {
+          const phase = ((time / 800 + i * 0.5) % 1);
+          const waveR = r + 4 + phase * 30;
+          ctx.globalAlpha = (1 - phase) * 0.3 * ohIntensity;
+          ctx.strokeStyle = '#ff6b00';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(0, 0, waveR, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+
       // HP 바 (파괴 상태 아닐 때)
       if (!isDestroyed) {
         const hpW = 44, hpH = 5;
@@ -1172,43 +1316,24 @@ const Renderer = (() => {
         ctx.strokeStyle = '#2a3a4e';
         ctx.lineWidth = 0.5;
         ctx.strokeRect(-hpW / 2, -r - 16, hpW, hpH);
-
-        // 오버히트 게이지 바 (HP 바 아래)
-        const oh = cell.overheat || 0;
-        if (oh > 0.01) {
-          const ohY = -r - 9;
-          const ohH = 3;
-          ctx.globalAlpha = 0.6;
-          ctx.fillStyle = '#0a0e17';
-          ctx.fillRect(-hpW / 2, ohY, hpW, ohH);
-          // 게이지 색상: 노랑 → 주황 → 빨강
-          const ohColor = oh < 0.6 ? '#f59e0b' : oh < 0.85 ? '#ff6b00' : '#ff2040';
-          ctx.fillStyle = ohColor;
-          ctx.fillRect(-hpW / 2, ohY, hpW * oh, ohH);
-          ctx.strokeStyle = '#2a3a4e';
-          ctx.lineWidth = 0.5;
-          ctx.strokeRect(-hpW / 2, ohY, hpW, ohH);
-
-          // OVERHEAT 텍스트 (threshold 이상일 때)
-          if (oh >= 0.6) {
-            ctx.globalAlpha = 0.5 + 0.3 * Math.sin(Date.now() / 200);
-            ctx.font = '7px Share Tech Mono';
-            ctx.fillStyle = ohColor;
-            ctx.textAlign = 'center';
-            ctx.fillText('OVERHEAT', 0, ohY - 2);
-          }
-        }
       }
 
-      // 점령 진행도 아크
+      // 점령 진행도 아크 + 퍼센트 표시
       if (isDestroyed && cell.captureProgress > 0 && cell.captureTeam) {
         const progress = cell.captureProgress / bal.captureTime;
+        const capColor = CELL_COLORS[cell.captureTeam];
         ctx.globalAlpha = 0.7;
-        ctx.strokeStyle = CELL_COLORS[cell.captureTeam];
+        ctx.strokeStyle = capColor;
         ctx.lineWidth = 4;
         ctx.beginPath();
-        ctx.arc(0, 0, r + 6, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress);
+        ctx.arc(0, 0, r + 12, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress);
         ctx.stroke();
+        // 진행률 텍스트
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = capColor;
+        ctx.font = 'bold 11px Share Tech Mono';
+        ctx.textAlign = 'center';
+        ctx.fillText(Math.floor(progress * 100) + '%', 0, -r - 20);
       }
 
       // 재건 진행도 아크
@@ -1234,9 +1359,11 @@ const Renderer = (() => {
       } else if (cell.warmup) {
         ctx.fillText('WARMING UP', 0, r + 14);
       } else if ((cell.overheat || 0) >= 0.6) {
-        ctx.globalAlpha = 0.6 + 0.3 * Math.sin(Date.now() / 200);
+        const ohPulse = 0.7 + 0.3 * Math.sin(Date.now() / 150);
+        ctx.globalAlpha = ohPulse;
+        ctx.font = 'bold 9px Share Tech Mono';
         ctx.fillStyle = '#ff2040';
-        ctx.fillText('OVERHEAT', 0, r + 14);
+        ctx.fillText('⚠ OVERHEAT', 0, r + 14);
       }
 
       // 셀 ID
@@ -1256,6 +1383,58 @@ const Renderer = (() => {
     spd:   { icon: 'bolt',  color: '#34d399', label: 'SPD' },
     regen: { icon: 'regen', color: '#60a5fa', label: 'REGEN' },
     armor: { icon: 'shield', color: '#a78bfa', label: 'ARMOR' },
+  };
+
+  const PING_CONFIG = {
+    attack: { color: '#ff3250', icon: '⚔', label: '공격' },
+    defend: { color: '#1e64ff', icon: '🛡', label: '방어' },
+    danger: { color: '#ff6b00', icon: '⚠', label: '위험' },
+    retreat: { color: '#ffd700', icon: '←', label: '후퇴' },
+  };
+
+  const drawPings = (pings, myTeam) => {
+    if (!pings || pings.length === 0) return;
+    const now = Date.now();
+    for (const ping of pings) {
+      if (ping.team !== myTeam) continue;  // Only show team pings
+
+      const age = now - ping.createdAt;
+      if (age > 4000) continue;
+
+      const alpha = age < 500 ? age / 500 : Math.max(0, 1 - (age - 3000) / 1000);
+      const config = PING_CONFIG[ping.type];
+      if (!config) continue;
+
+      const sx = ping.x - camera.x;
+      const sy = ping.y - camera.y;
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+
+      // Expanding ring animation
+      const ringProgress = (age % 1500) / 1500;
+      const ringRadius = 20 + ringProgress * 30;
+      ctx.beginPath();
+      ctx.arc(sx, sy, ringRadius, 0, Math.PI * 2);
+      ctx.strokeStyle = config.color;
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = alpha * (1 - ringProgress);
+      ctx.stroke();
+
+      // Icon
+      ctx.globalAlpha = alpha;
+      ctx.font = '18px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = config.color;
+      ctx.fillText(config.icon, sx, sy - 25);
+
+      // Label + player name
+      ctx.font = '10px "Share Tech Mono"';
+      ctx.fillStyle = config.color;
+      ctx.fillText(`${config.label} — ${ping.playerName}`, sx, sy + 35);
+
+      ctx.restore();
+    }
   };
 
   const drawPlayers = (players, myId, teamBuffs) => {
@@ -1340,8 +1519,9 @@ const Renderer = (() => {
           ctx.stroke();
         }
 
-        // 오비탈 오브 그리기
+        // 오비탈 오브 그리기 (팀 색상)
         if (p.orbCount && p.orbRadius) {
+          const orbColor = lightColor;
           for (let i = 0; i < p.orbCount; i++) {
             const orbAngle = (p.orbAngle || 0) + (Math.PI * 2 / p.orbCount) * i;
             const oX = Math.cos(orbAngle) * p.orbRadius;
@@ -1349,7 +1529,7 @@ const Renderer = (() => {
             // 궤도 경로 (연한 원)
             if (i === 0) {
               ctx.globalAlpha = 0.06;
-              ctx.strokeStyle = accent;
+              ctx.strokeStyle = orbColor;
               ctx.lineWidth = 1;
               ctx.beginPath();
               ctx.arc(0, 0, p.orbRadius, 0, Math.PI * 2);
@@ -1357,7 +1537,7 @@ const Renderer = (() => {
             }
             // 오브 본체
             ctx.globalAlpha = 0.8;
-            ctx.fillStyle = accent;
+            ctx.fillStyle = orbColor;
             ctx.beginPath();
             ctx.arc(oX, oY, p.orbSize || 14, 0, Math.PI * 2);
             ctx.fill();
@@ -1369,12 +1549,181 @@ const Renderer = (() => {
             ctx.fill();
             // 오브 글로우
             ctx.globalAlpha = 0.2;
-            ctx.fillStyle = accent;
+            ctx.fillStyle = orbColor;
             ctx.beginPath();
             ctx.arc(oX, oY, (p.orbSize || 14) * 2, 0, Math.PI * 2);
             ctx.fill();
           }
         }
+      } else if (p.className === 'inductor') {
+        // 인덕터: 육각형 (자기장 탱커) + 보라색 오브
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const angle = (Math.PI / 3) * i;
+          const px = Math.cos(angle) * p.radius;
+          const py = Math.sin(angle) * p.radius;
+          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = isMe ? '#ffffff' : lightColor;
+        ctx.lineWidth = isMe ? 3 : 1.5;
+        ctx.stroke();
+
+        // 자기장 표시 (미세한 링)
+        ctx.globalAlpha = 0.2;
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(0, 0, p.radius + 8, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // 보호막 + 오비탈 (캐패시터와 동일, 색상만 보라색)
+        if (p.shield > 0 && p.maxShield > 0) {
+          const shieldRatio = p.shield / p.maxShield;
+          ctx.globalAlpha = 0.15 + shieldRatio * 0.2;
+          ctx.strokeStyle = '#a855f7';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(0, 0, p.radius + 6, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        if (p.orbCount && p.orbRadius) {
+          const orbColor = lightColor;
+          for (let i = 0; i < p.orbCount; i++) {
+            const orbAngle = (p.orbAngle || 0) + (Math.PI * 2 / p.orbCount) * i;
+            const oX = Math.cos(orbAngle) * p.orbRadius;
+            const oY = Math.sin(orbAngle) * p.orbRadius;
+            ctx.globalAlpha = 0.7;
+            ctx.fillStyle = orbColor;
+            ctx.beginPath();
+            ctx.arc(oX, oY, (p.orbSize || 16), 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 0.2;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(oX, oY, (p.orbSize || 16) * 2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      } else if (p.className === 'transformer') {
+        // 트랜스포머: 다이아몬드 (서포터) + 녹색 오라
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        const r = p.radius;
+        ctx.moveTo(0, -r);      // 위
+        ctx.lineTo(r, 0);        // 오른쪽
+        ctx.lineTo(0, r);        // 아래
+        ctx.lineTo(-r, 0);       // 왼쪽
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = isMe ? '#ffffff' : lightColor;
+        ctx.lineWidth = isMe ? 3 : 1.5;
+        ctx.stroke();
+
+        // 아군 버프 오라 표시
+        ctx.globalAlpha = 0.1;
+        ctx.fillStyle = accent;
+        ctx.beginPath();
+        ctx.arc(0, 0, p.radius * 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 0.3;
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, p.radius * 2.5, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // 보호막 + 오비탈
+        if (p.shield > 0 && p.maxShield > 0) {
+          const shieldRatio = p.shield / p.maxShield;
+          ctx.globalAlpha = 0.15 + shieldRatio * 0.2;
+          ctx.strokeStyle = '#10b981';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(0, 0, p.radius + 6, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        if (p.orbCount && p.orbRadius) {
+          const orbColor = lightColor;
+          for (let i = 0; i < p.orbCount; i++) {
+            const orbAngle = (p.orbAngle || 0) + (Math.PI * 2 / p.orbCount) * i;
+            const oX = Math.cos(orbAngle) * p.orbRadius;
+            const oY = Math.sin(orbAngle) * p.orbRadius;
+            ctx.globalAlpha = 0.7;
+            ctx.fillStyle = orbColor;
+            ctx.beginPath();
+            ctx.arc(oX, oY, (p.orbSize || 12), 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 0.2;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(oX, oY, (p.orbSize || 12) * 2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      } else if (p.className === 'oscillator') {
+        // 오실레이터: 파형 삼각형 (버스트) + 청록색 트레일
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        const r = p.radius;
+        ctx.moveTo(r * 1.2, 0);                // 앞쪽 뾰족
+        ctx.lineTo(-r * 0.5, -r * 1.0);        // 왼쪽 뒤 (더 뾰족)
+        ctx.lineTo(-r * 0.5, r * 1.0);         // 오른쪽 뒤
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = isMe ? '#ffffff' : lightColor;
+        ctx.lineWidth = isMe ? 3 : 1.5;
+        ctx.stroke();
+
+        // 내부 파동 표시
+        ctx.globalAlpha = 0.5;
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(-r * 0.3, -r * 0.5);
+        ctx.lineTo(r * 0.3, -r * 0.5);
+        ctx.moveTo(-r * 0.3, 0);
+        ctx.lineTo(r * 0.3, 0);
+        ctx.moveTo(-r * 0.3, r * 0.5);
+        ctx.lineTo(r * 0.3, r * 0.5);
+        ctx.stroke();
+      } else if (p.className === 'amplifier') {
+        // 앰플리파이어: 십자형 (스나이퍼) + 붉은 조준선
+        ctx.fillStyle = color;
+        const r = p.radius * 0.8;
+        ctx.beginPath();
+        ctx.moveTo(-r * 0.4, -r);
+        ctx.lineTo(r * 0.4, -r);
+        ctx.lineTo(r * 0.4, -r * 0.4);
+        ctx.lineTo(r, -r * 0.4);
+        ctx.lineTo(r, r * 0.4);
+        ctx.lineTo(r * 0.4, r * 0.4);
+        ctx.lineTo(r * 0.4, r);
+        ctx.lineTo(-r * 0.4, r);
+        ctx.lineTo(-r * 0.4, r * 0.4);
+        ctx.lineTo(-r, r * 0.4);
+        ctx.lineTo(-r, -r * 0.4);
+        ctx.lineTo(-r * 0.4, -r * 0.4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = isMe ? '#ffffff' : lightColor;
+        ctx.lineWidth = isMe ? 3 : 1.5;
+        ctx.stroke();
+
+        // 조준 십자선 오버레이
+        ctx.globalAlpha = 0.6;
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(-r * 1.3, 0);
+        ctx.lineTo(r * 1.3, 0);
+        ctx.moveTo(0, -r * 1.3);
+        ctx.lineTo(0, r * 1.3);
+        ctx.stroke();
       } else if (p.className === 'repeater') {
         // 리피터: 삼각형 (빠른 느낌)
         ctx.fillStyle = color;
@@ -1408,8 +1757,8 @@ const Renderer = (() => {
         ctx.stroke();
       }
 
-      // 방향 표시 (조준 각도)
-      if (p.className !== 'repeater') {
+      // 방향 표시 (조준 각도) — repeater/oscillator/amplifier는 이미 방향 표시 있음
+      if (p.className !== 'repeater' && p.className !== 'oscillator' && p.className !== 'amplifier') {
         const gunLen = p.radius + 10;
         ctx.globalAlpha = 0.6;
         ctx.strokeStyle = lightColor;
@@ -1565,16 +1914,37 @@ const Renderer = (() => {
 
   const drawBullets = (bullets) => {
     for (const b of bullets) {
-      ctx.fillStyle = TEAM_COLORS_LIGHT[b.team] || '#ffffff';
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.save();
-      ctx.globalAlpha = 0.3;
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, b.radius * 3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
+      if (b.isAmped) {
+        // 증폭탄: 큰 글로우 + 밝은 코어 (AMPLIFIER Tier 3 추가 요소, 팀 색상)
+        const ampColor = TEAM_COLORS_LIGHT[b.team] || '#ffdd44';
+        ctx.save();
+        ctx.fillStyle = ampColor;
+        ctx.globalAlpha = 0.25;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.radius * 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 0.5;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.radius * 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      } else {
+        ctx.fillStyle = TEAM_COLORS_LIGHT[b.team] || '#ffffff';
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.radius * 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
     }
   };
 
@@ -2049,6 +2419,24 @@ const Renderer = (() => {
     }
   };
 
+  // 플로팅 텍스트 렌더링 (화면 좌표)
+  const drawFloatingTexts = (dt) => {
+    for (let i = _floatingTexts.length - 1; i >= 0; i--) {
+      const ft = _floatingTexts[i];
+      ft.y += ft.vy * dt;
+      ft.life -= dt;
+      ft.alpha = Math.max(0, ft.life / 1.2);
+      if (ft.life <= 0) { _floatingTexts.splice(i, 1); continue; }
+      ctx.save();
+      ctx.globalAlpha = ft.alpha;
+      ctx.fillStyle = ft.color;
+      ctx.font = 'bold 14px Share Tech Mono';
+      ctx.textAlign = 'center';
+      ctx.fillText(ft.text, ft.x - camera.x + canvas.width / 2, ft.y - camera.y + canvas.height / 2);
+      ctx.restore();
+    }
+  };
+
   const updateAndDrawParticles = () => {
     const dt = 1 / 60;
     for (let i = particles.length - 1; i >= 0; i--) {
@@ -2226,8 +2614,10 @@ const Renderer = (() => {
       }
     }
 
-    // 셀 터렛
+    // 셀 터렛 (Q-3: 점령 진행도 표시)
     if (state.cells) {
+      const cellBalance = currentMapConfig && currentMapConfig.cellBalance;
+      const captureTime = cellBalance ? cellBalance.captureTime : 4000;
       for (const cell of state.cells) {
         const cx = mmX + cell.x * scaleX;
         const cy = mmY + cell.y * scaleY;
@@ -2240,6 +2630,24 @@ const Renderer = (() => {
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 0.5;
         ctx.strokeRect(cx - 3, cy - 3, 6, 6);
+
+        // Q-3: 점령/재건 진행도 아크
+        if (cell.captureProgress > 0 && cell.captureTeam) {
+          const progress = cell.captureProgress / captureTime;
+          ctx.strokeStyle = TEAM_COLORS[cell.captureTeam] || '#ffd700';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(cx, cy, 5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress);
+          ctx.stroke();
+        } else if (cell.state === 'rebuilding' && cell.rebuildProgress > 0) {
+          const rebuildTime = cellBalance ? cellBalance.rebuildTime : 3000;
+          const progress = cell.rebuildProgress / rebuildTime;
+          ctx.strokeStyle = '#ffd700';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(cx, cy, 5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress);
+          ctx.stroke();
+        }
       }
     }
 
@@ -2291,13 +2699,34 @@ const Renderer = (() => {
       }
     }
 
-    // 플레이어
+    // 플레이어 (Q-5: 복수 대상 하이라이트)
     for (const p of state.players) {
       if (!p.alive) continue;
       const isMe = p.id === myId;
+      const isRevenge = _revengeTargetId && p.id === _revengeTargetId;
+      const px = mmX + p.x * scaleX;
+      const py = mmY + p.y * scaleY;
+
+      // Q-5: 복수 대상 — 빨간 펄스 링
+      if (isRevenge) {
+        const pulse = 0.5 + Math.sin(performance.now() / 200) * 0.3;
+        ctx.strokeStyle = '#ff2200';
+        ctx.lineWidth = 1.5;
+        ctx.globalAlpha = pulse;
+        ctx.beginPath();
+        ctx.arc(px, py, 5, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        // 해골 마커
+        ctx.fillStyle = '#ff2200';
+        ctx.font = '8px Share Tech Mono';
+        ctx.textAlign = 'center';
+        ctx.fillText('☠', px, py - 6);
+      }
+
       ctx.fillStyle = isMe ? '#ffffff' : TEAM_COLORS[p.team];
       ctx.beginPath();
-      ctx.arc(mmX + p.x * scaleX, mmY + p.y * scaleY, isMe ? 3 : 2, 0, Math.PI * 2);
+      ctx.arc(px, py, isMe ? 3 : 2, 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -2340,5 +2769,33 @@ const Renderer = (() => {
     }
   };
 
-  return { init, render, getCamera, spawnParticles, addPulseEffect };
+  // Q-4: 화면 테두리 글로우 트리거
+  const triggerScreenGlow = (color, duration = 2000) => {
+    screenGlow = { color, startTime: performance.now(), duration };
+  };
+
+  // Q-4: 화면 테두리 글로우 그리기
+  const drawScreenGlow = () => {
+    if (!screenGlow) return;
+    const elapsed = performance.now() - screenGlow.startTime;
+    if (elapsed >= screenGlow.duration) { screenGlow = null; return; }
+    const progress = elapsed / screenGlow.duration;
+    const alpha = Math.max(0, 0.6 * (1 - progress));
+    const thickness = 12 * (1 - progress * 0.5);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = screenGlow.color;
+    ctx.lineWidth = thickness;
+    ctx.shadowColor = screenGlow.color;
+    ctx.shadowBlur = 30 * (1 - progress);
+    ctx.strokeRect(thickness / 2, thickness / 2, canvas.width - thickness, canvas.height - thickness);
+    ctx.restore();
+  };
+
+  // Q-5: 복수 대상 ID 설정
+  const setRevengeTarget = (targetId) => {
+    _revengeTargetId = targetId;
+  };
+
+  return { init, render, getCamera, spawnParticles, addPulseEffect, addFloatingText, triggerScreenGlow, setRevengeTarget };
 })();

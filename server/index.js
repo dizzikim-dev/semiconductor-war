@@ -12,7 +12,24 @@ const UserDataStore = require('./userData');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
+// C-4: CORS 제한 + 동시 접속 제한
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : '*'; // 로컬 개발 시 전체 허용, 프로덕션에서는 환경변수로 제한
+const MAX_CONNECTIONS = parseInt(process.env.MAX_CONNECTIONS, 10) || 50;
+
+const io = new Server(server, {
+  cors: { origin: ALLOWED_ORIGINS },
+  connectionStateRecovery: {},
+});
+
+// 동시 접속 수 제한 미들웨어
+io.use((socket, next) => {
+  if (io.engine.clientsCount >= MAX_CONNECTIONS) {
+    return next(new Error('서버가 가득 찼습니다. 잠시 후 다시 시도해주세요.'));
+  }
+  next();
+});
 
 // ── 시장 데이터 서비스 ──
 const marketDataService = createMarketDataService();
@@ -137,6 +154,7 @@ io.on('connection', (socket) => {
   socket.on('player_join', ({ name, team, mapId, uuid }) => {
     if (!name || !Object.values(C.TEAM).includes(team)) return;
 
+    const finalTeam = team;
     const requestedMap = mapId || DEFAULT_MAP_ID;
     const g = ensureGame(requestedMap);
 
@@ -151,12 +169,12 @@ io.on('connection', (socket) => {
       console.log(`[맵 변경] 요청: ${requestedMap} → 서버 맵: ${acceptedMapId}`);
     }
 
-    const player = g.addPlayer(socket.id, name.slice(0, 16), team);
+    const player = g.addPlayer(socket.id, name.slice(0, 16), finalTeam);
     socket.emit('player_joined', { id: player.id, team: player.team, mapId: acceptedMapId });
 
     // UUID 기반 유저 데이터 추적
     const playerUuid = (typeof uuid === 'string' && uuid.length > 0) ? uuid : `server_${socket.id}`;
-    userDataStore.onPlayerJoin(socket.id, playerUuid, name.slice(0, 16), team, acceptedMapId);
+    userDataStore.onPlayerJoin(socket.id, playerUuid, name.slice(0, 16), finalTeam, acceptedMapId);
 
     // 채팅 히스토리 전송
     const history = chatService.getHistory();
@@ -165,11 +183,28 @@ io.on('connection', (socket) => {
     }
 
     ensureBots();
-    console.log(`[참가] ${name} → ${team} (map: ${acceptedMapId})`);
+    console.log(`[참가] ${name} → ${finalTeam} (map: ${acceptedMapId})`);
   });
 
+  // 입력 속도 제한 (최소 10ms 간격) + C-5: 구조 검증
+  let lastInputTime = 0;
   socket.on('player_input', (input) => {
-    if (game) game.handleInput(socket.id, input);
+    const now = Date.now();
+    if (now - lastInputTime < 10) return;
+    lastInputTime = now;
+    if (!input || typeof input !== 'object') return;
+    // 화이트리스트: boolean 4키만 허용, prototype pollution 방지
+    const sanitized = {
+      up: input.up === true,
+      down: input.down === true,
+      left: input.left === true,
+      right: input.right === true,
+    };
+    if (game) game.handleInput(socket.id, sanitized);
+  });
+
+  socket.on('player_ping', ({ type }) => {
+    if (game) game.handlePing(socket.id, type);
   });
 
   socket.on('player_evolve', ({ className }) => {

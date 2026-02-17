@@ -71,6 +71,9 @@ class Game {
     this.neutralMobSpawnTimer = 0;
     this._neutralRespawnQueue = []; // { type, timer }
 
+    // ── Ping System ──
+    this.pings = [];  // { id, x, y, type, team, playerName, createdAt }
+
     console.log(`[Game] Map loaded: ${this.mapConfig.name} (${this.mapId})`);
   }
 
@@ -99,6 +102,30 @@ class Game {
     const player = this.players.get(id);
     if (!player) return;
     player.input = input;
+  }
+
+  handlePing(socketId, pingType) {
+    const p = this.players.get(socketId);
+    if (!p || !p.alive) return;
+    if (!['attack', 'defend', 'danger', 'retreat'].includes(pingType)) return;
+
+    // Rate limit: 1 ping per 2 seconds per player
+    const now = Date.now();
+    if (p._lastPingTime && now - p._lastPingTime < 2000) return;
+    p._lastPingTime = now;
+
+    this.pings.push({
+      id: `ping_${now}_${socketId}`,
+      x: p.x,
+      y: p.y,
+      type: pingType,
+      team: p.team,
+      playerName: p.name,
+      createdAt: now,
+    });
+
+    // Clean old pings (>4 seconds)
+    this.pings = this.pings.filter(pg => now - pg.createdAt < 4000);
   }
 
   resetRound() {
@@ -232,6 +259,42 @@ class Game {
       p.x = Math.max(p.radius, Math.min(this.worldW - p.radius, p.x));
       p.y = Math.max(p.radius, Math.min(this.worldH - p.radius, p.y));
 
+      // ── 스폰 보호 존 (Spawn Protection Zone) ──
+      for (const [team, spawn] of Object.entries(this.mapConfig.teamSpawns)) {
+        const dist = this._dist(p, spawn);
+        if (dist < C.SPAWN_ZONE_RADIUS) {
+          if (p.team === team) {
+            // 아군 스폰 존: 무적 시간 갱신
+            if (p.invulnTimer < C.SPAWN_ZONE_INVULN_REFRESH) {
+              p.invulnTimer = C.SPAWN_ZONE_INVULN_REFRESH;
+            }
+          } else {
+            // 적 스폰 존: 데미지 + 밀어내기
+            const dmg = C.SPAWN_ZONE_DAMAGE * dt;
+            if (p.hp > 0) p.hp -= dmg;
+
+            // 밀어내기: 스폰 중심에서 멀어지는 방향으로 강제 이동
+            if (dist > 0) {
+              const angle = Math.atan2(p.y - spawn.y, p.x - spawn.x);
+              const pushX = Math.cos(angle) * C.SPAWN_ZONE_KNOCKBACK * dt;
+              const pushY = Math.sin(angle) * C.SPAWN_ZONE_KNOCKBACK * dt;
+              const newX = p.x + pushX;
+              const newY = p.y + pushY;
+              if (!this._collidesWithObstacle(newX, p.y, p.radius)) p.x = newX;
+              if (!this._collidesWithObstacle(p.x, newY, p.radius)) p.y = newY;
+            }
+
+            // HP 소진 시 사망 처리
+            if (p.hp <= 0) {
+              p.hp = 0; p.alive = false; p.deaths++;
+              p.respawnTimer = C.PLAYER_RESPAWN_DELAY;
+              p.xp = Math.floor(p.xp * (1 - C.XP_LOSS_ON_DEATH));
+              this.events.push({ type: 'spawn_kill', victim: p.name });
+            }
+          }
+        }
+      }
+
       // ── 오토 타겟팅 ──
       if (p.fireCooldown > 0) p.fireCooldown -= dt * 1000;
       p.autoTargetTimer -= dt * 1000;
@@ -242,11 +305,19 @@ class Game {
 
       const cls = p.getClassConfig();
       if (cls.attackType === 'orbit') {
-        // 캐패시터: 오비탈 회전 공격 + 보호막
+        // 캐패시터/인덕터/트랜스포머: 오비탈 회전 공격 + 보호막
         this._updateOrbitals(p, dt, now);
         this._updateShield(p, dt);
+        // 인덕터: 자기장 인력
+        if (cls.magneticPull) {
+          this._applyMagneticPull(p, dt);
+        }
+        // 트랜스포머: 아군 버프 오라
+        if (cls.aura) {
+          this._applyTransformerAura(p, dt);
+        }
       } else {
-        // 레지스터/리피터: 탄환 발사
+        // 레지스터/리피터/오실레이터/앰플리파이어: 탄환 발사
         this._autoFire(p);
       }
 
@@ -356,9 +427,9 @@ class Game {
     if (p.fireCooldown > 0) return;
     const cls = p.getClassConfig();
 
-    // 타겟이 없으면 Repeater만 전방 사격
+    // 타겟이 없으면 Repeater 계열만 전방 사격
     if (!p.autoTargetId) {
-      if (cls.attackType === 'single' && p.className === 'repeater') {
+      if (cls.attackType === 'single' && (p.className === 'repeater' || p.className === 'oscillator' || p.className === 'amplifier')) {
         this._fireProjectile(p, cls, p.lastMoveAngle);
       }
       return;
@@ -373,7 +444,6 @@ class Game {
     const angle = Math.atan2(targetObj.y - p.y, targetObj.x - p.x);
     p.angle = angle;
 
-    // 레지스터/리피터: 탄환 발사 (오비탈은 _updateOrbitals에서 처리)
     this._fireProjectile(p, cls, angle);
   }
 
@@ -381,13 +451,41 @@ class Game {
     const dmgBuff = this._getTeamBuffValue(p.team, 'dmg');
     const marketBuff = this._getMarketBuff(p.team);
     const eventDmgBoost = this._getEventZoneEffect(p, 'damage_boost');
-    const damage = p.getAttackDamage() * (1 + dmgBuff) * (1 + marketBuff.damageModifier) * (1 + eventDmgBoost);
-    const bullet = new Bullet(p.id, p.team, p.x, p.y, angle, damage, {
-      speed: cls.bulletSpeed,
-      radius: cls.bulletRadius,
-      lifetime: cls.bulletLifetime,
-    });
-    this.bullets.push(bullet);
+    const transformerBoost = this._getTransformerAuraDmg(p);
+    const baseDamage = p.getAttackDamage() * (1 + dmgBuff) * (1 + marketBuff.damageModifier) * (1 + eventDmgBoost) * (1 + transformerBoost);
+
+    // AMPLIFIER 증폭탄: N발째마다 강화 (스트라이커즈 1945 패턴)
+    let damage = baseDamage;
+    let bulletRadius = cls.bulletRadius;
+    let isAmped = false;
+    if (cls.ampedEvery) {
+      if (!p.shotCounter) p.shotCounter = 0;
+      p.shotCounter++;
+      if (p.shotCounter >= cls.ampedEvery) {
+        p.shotCounter = 0;
+        damage = baseDamage * (cls.ampedDmgMultiplier || 3.0);
+        bulletRadius = cls.ampedBulletRadius || 6;
+        isAmped = true;
+      }
+    }
+
+    // OSCILLATOR 확산탄: 메인 + 좌우 (스트라이커즈 1945 패턴)
+    const shotCount = cls.multiShot || 1;
+    const spread = cls.spreadAngle || 0;
+    for (let i = 0; i < shotCount; i++) {
+      let shotAngle = angle;
+      if (shotCount > 1) {
+        // i=0: -spread, i=1: 0 (center), i=2: +spread
+        shotAngle = angle + (i - Math.floor(shotCount / 2)) * spread;
+      }
+      const bullet = new Bullet(p.id, p.team, p.x, p.y, shotAngle, damage, {
+        speed: cls.bulletSpeed,
+        radius: bulletRadius,
+        lifetime: cls.bulletLifetime,
+        isAmped,
+      });
+      this.bullets.push(bullet);
+    }
     p.fireCooldown = cls.attackCooldown;
   }
 
@@ -414,7 +512,8 @@ class Game {
     const dmgBuff = this._getTeamBuffValue(p.team, 'dmg');
     const marketBuff = this._getMarketBuff(p.team);
     const eventDmgBoost = this._getEventZoneEffect(p, 'damage_boost');
-    const damage = p.getAttackDamage() * (1 + dmgBuff) * (1 + marketBuff.damageModifier) * (1 + eventDmgBoost);
+    const transformerBoost = this._getTransformerAuraDmg(p);
+    const damage = p.getAttackDamage() * (1 + dmgBuff) * (1 + marketBuff.damageModifier) * (1 + eventDmgBoost) * (1 + transformerBoost);
 
     // 각 오브 위치 계산 및 충돌 체크
     for (let i = 0; i < orbCount; i++) {
@@ -459,9 +558,10 @@ class Game {
           p.orbHitTimers[mon.id] = now;
           mon.hp -= damage;
           mon.lastHitTeam = p.team;
+          this._trackDamage(mon, p.id, damage);
           if (mon.hp <= 0) {
             mon.alive = false;
-            this._onMonsterKill(mon, p.team);
+            this._onMonsterKill(mon, p.team, p.id);
           }
         }
       }
@@ -540,7 +640,10 @@ class Game {
   }
 
   // ── 보호막 포함 플레이어 데미지 적용 ──
-  _applyDamageToPlayer(target, damage, attacker) {
+  _applyDamageToPlayer(target, damage, attacker, source) {
+    // 스폰 보호 존 체크 (최우선)
+    if (this._isInOwnSpawnZone(target)) return;
+
     // 캐패시터 보호막 우선 흡수
     if (target.shield > 0) {
       if (target.shield >= damage) {
@@ -574,30 +677,117 @@ class Game {
     }
 
     if (damage <= 0) return;
+
+    // 데미지 기여 추적 (어시스트 시스템)
+    if (attacker) {
+      this._trackDamage(target, attacker.id, damage);
+    }
+
     target.hp -= damage;
     if (target.hp <= 0) {
       target.hp = 0; target.alive = false; target.deaths++;
       target.respawnTimer = C.PLAYER_RESPAWN_DELAY;
       target.xp = Math.floor(target.xp * (1 - C.XP_LOSS_ON_DEATH));
+
+      // 킬러 팀 파악 (attacker, source, 또는 기여 기록에서)
+      const killerTeam = attacker ? attacker.team : (source && source.team) || null;
+
       if (attacker) {
         attacker.kills++; this.teamKills[attacker.team]++;
+        // 복수 킬 체크
+        const isRevenge = attacker.revengeTargetId === target.id;
         this._grantXp(attacker, 'playerKill');
-        this.events.push({ type: 'kill', killer: attacker.name, victim: target.name, killerTeam: attacker.team });
+        if (isRevenge) {
+          this._grantXp(attacker, 'revenge');
+          attacker.revengeTargetId = null;
+          this.events.push({ type: 'revenge', killer: attacker.name, victim: target.name, killerTeam: attacker.team });
+        }
+        this.events.push({ type: 'kill', killer: attacker.name, victim: target.name, killerTeam: attacker.team, killerClass: attacker.className });
+        target.lastKilledBy = { name: attacker.name, id: attacker.id, className: attacker.className };
+        target.revengeTargetId = attacker.id;
+      } else if (source === 'hazard') {
+        target.lastKilledBy = { name: 'Plasma Etch', className: 'hazard' };
+        target.revengeTargetId = null;
+      } else if (source && source.typeName) {
+        target.lastKilledBy = { name: source.typeName, className: source.className || 'boss' };
+        target.revengeTargetId = null;
+      } else {
+        target.lastKilledBy = null;
+        target.revengeTargetId = null;
       }
+
+      // 어시스트 XP: 킬러와 같은 팀이고 기여도 충족한 플레이어에게 보상
+      this._processAssists(target, attacker ? attacker.id : null, killerTeam);
     }
   }
 
+  // ── 데미지 기여 추적 ──
+  _trackDamage(target, attackerId, damage) {
+    const now = Date.now();
+    if (!target.damageContributors) target.damageContributors = {};
+    const entry = target.damageContributors[attackerId];
+    if (entry) {
+      entry.damage += damage;
+      entry.lastTime = now;
+    } else {
+      target.damageContributors[attackerId] = { damage, lastTime: now };
+    }
+  }
+
+  // ── 어시스트 XP 분배 ──
+  _processAssists(deadTarget, killerId, killerTeam) {
+    const now = Date.now();
+    const threshold = deadTarget.maxHp * C.ASSIST_THRESHOLD;
+    for (const [playerId, entry] of Object.entries(deadTarget.damageContributors || {})) {
+      if (playerId === killerId) continue; // 킬러는 이미 킬 XP 받음
+      if (now - entry.lastTime > C.DAMAGE_TRACKER_EXPIRE) continue; // 오래된 기여 무시
+      if (entry.damage < threshold) continue; // 기여도 미달
+      const contributor = this.players.get(playerId);
+      if (!contributor || !contributor.alive) continue;
+      // 같은 팀만 어시스트 인정 (적에게 줄 필요 없음)
+      if (killerTeam && contributor.team !== killerTeam) continue;
+      this._grantXp(contributor, 'assist');
+      this.events.push({ type: 'assist', player: contributor.name, playerId: contributor.id, victim: deadTarget.name, team: contributor.team });
+    }
+    deadTarget.damageContributors = {}; // 기록 초기화
+  }
+
   // ── 보스 처치 보상 ──
-  _onMonsterKill(mon, team) {
+  _onMonsterKill(mon, team, killerId) {
     if (team) {
-      this.teamBuffs[team].push({
-        buff: mon.buff, value: mon.buffValue, label: mon.buffLabel,
-        expiresAt: Date.now() + C.MONSTER_BUFF_DURATION,
-      });
+      // 같은 버프 타입은 갱신 (중복 스택 방지)
+      const existingIdx = this.teamBuffs[team].findIndex(b => b.buff === mon.buff);
+      if (existingIdx >= 0) {
+        this.teamBuffs[team][existingIdx].value = mon.buffValue;
+        this.teamBuffs[team][existingIdx].label = mon.buffLabel;
+        this.teamBuffs[team][existingIdx].expiresAt = Date.now() + C.MONSTER_BUFF_DURATION;
+      } else {
+        this.teamBuffs[team].push({
+          buff: mon.buff, value: mon.buffValue, label: mon.buffLabel,
+          expiresAt: Date.now() + C.MONSTER_BUFF_DURATION,
+        });
+      }
       this.events.push({
         type: 'monster_kill', team,
         monsterName: mon.typeName, buffLabel: mon.buffLabel,
       });
+      // 보스 라스트히트 XP: 처치자에게 monsterKill 보상
+      if (killerId) {
+        const killer = this.players.get(killerId);
+        if (killer && killer.alive) {
+          this._grantXp(killer, 'monsterKill');
+        }
+      }
+      // 보스 어시스트 XP: 데미지 기여한 모든 플레이어에게 보상
+      const now = Date.now();
+      for (const [playerId, entry] of Object.entries(mon.damageContributors || {})) {
+        if (now - entry.lastTime > C.DAMAGE_TRACKER_EXPIRE) continue;
+        if (playerId === killerId) continue; // 처치자는 이미 monsterKill XP 받음
+        const contributor = this.players.get(playerId);
+        if (!contributor || !contributor.alive) continue;
+        this._grantXp(contributor, 'bossAssist');
+      }
+      mon.damageContributors = {};
       // Wafer Ring: boss kill → cleanse zones
       if (this.mapConfig.zones && this.mapConfig.zones.length > 0) {
         this.zoneCleansed = true;
@@ -712,13 +902,14 @@ class Game {
       // 근접 공격
       if (closestTarget && closestDist <= C.MINION_ATTACK_RANGE + m.radius + (closestTarget.radius || 0)) {
         if (m.attackCooldown <= 0) {
-          closestTarget.hp -= m.damage;
           m.attackCooldown = C.MINION_ATTACK_COOLDOWN;
-          if (closestTarget.hp <= 0) {
-            closestTarget.alive = false;
-            if (closestTarget.constructor.name === 'Player') {
-              closestTarget.deaths++;
-              closestTarget.respawnTimer = C.PLAYER_RESPAWN_DELAY;
+          if (closestTarget.constructor.name === 'Player') {
+            // C-1: 보호막/아머 적용, C-2: XP 손실 + lastKilledBy 처리
+            this._applyDamageToPlayer(closestTarget, m.damage, null, { typeName: `${m.team} Minion`, className: 'minion' });
+          } else {
+            closestTarget.hp -= m.damage;
+            if (closestTarget.hp <= 0) {
+              closestTarget.alive = false;
             }
           }
         }
@@ -779,14 +970,14 @@ class Game {
           for (let i = 0; i < mon.bulletCount; i++) {
             const offset = (i - (mon.bulletCount - 1) / 2) * mon.spreadAngle;
             this.bossBullets.push(new BossBullet(
-              mon.x, mon.y, baseAngle + offset, mon.attackDamage, C.BOSS_BULLET_SPEED, mon.color
+              mon.x, mon.y, baseAngle + offset, mon.attackDamage, C.BOSS_BULLET_SPEED, mon.color, mon.typeName
             ));
           }
           break;
         }
         case 'sniper': {
           this.bossBullets.push(new BossBullet(
-            mon.x, mon.y, mon.angle, mon.attackDamage, mon.bulletSpeed, mon.color
+            mon.x, mon.y, mon.angle, mon.attackDamage, mon.bulletSpeed, mon.color, mon.typeName
           ));
           break;
         }
@@ -817,7 +1008,7 @@ class Game {
             this.bossBullets.push(new BossBullet(
               mon.x + Math.cos(perp) * offset * side,
               mon.y + Math.sin(perp) * offset * side,
-              mon.angle, mon.attackDamage, C.BOSS_BULLET_SPEED, mon.color
+              mon.angle, mon.attackDamage, C.BOSS_BULLET_SPEED, mon.color, mon.typeName
             ));
           }
           break;
@@ -834,7 +1025,7 @@ class Game {
           for (const p of this.players.values()) {
             if (!p.alive) continue;
             if (this._dist(mon, p) <= mon.pulseRadius + p.radius) {
-              this._applyDamageToPlayer(p, mon.attackDamage, null);
+              this._applyDamageToPlayer(p, mon.attackDamage, null, mon);
             }
           }
           mon.pulseActive = false;
@@ -858,7 +1049,7 @@ class Game {
       for (const p of this.players.values()) {
         if (!p.alive) continue;
         if (this._circleCollide(b, p)) {
-          this._applyDamageToPlayer(p, b.damage, null);
+          this._applyDamageToPlayer(p, b.damage, null, { typeName: b.bossName });
           b.alive = false;
           break;
         }
@@ -1117,6 +1308,7 @@ class Game {
       for (const p of this.players.values()) {
         if (!p.alive || p.team === b.team) continue;
         if (p.invulnTimer > 0) continue;
+        if (this._isInOwnSpawnZone(p)) continue; // 스폰 보호 존
         if (this._circleCollide(b, p)) {
           const armorBuff = this._getTeamBuffValue(p.team, 'armor');
           let dmg = b.damage * (1 - armorBuff);
@@ -1135,22 +1327,41 @@ class Game {
             }
           }
 
+          // 데미지 기여 추적
+          const shooterForTrack = this.players.get(b.ownerId);
+          if (shooterForTrack && dmg > 0) this._trackDamage(p, shooterForTrack.id, dmg);
+
           if (dmg > 0) p.hp -= dmg;
           if (p.hp <= 0) {
             p.hp = 0; p.alive = false; p.deaths++;
             p.respawnTimer = C.PLAYER_RESPAWN_DELAY;
             p.xp = Math.floor(p.xp * (1 - C.XP_LOSS_ON_DEATH));
-            const shooter = this.players.get(b.ownerId);
+            const shooter = shooterForTrack;
             if (shooter) {
               shooter.kills++;
               this.teamKills[shooter.team]++;
+              const isRevenge = shooter.revengeTargetId === p.id;
               this._grantXp(shooter, 'playerKill');
-              this.events.push({ type: 'kill', killer: shooter.name, victim: p.name, killerTeam: shooter.team });
+              if (isRevenge) {
+                this._grantXp(shooter, 'revenge');
+                shooter.revengeTargetId = null;
+                this.events.push({ type: 'revenge', killer: shooter.name, victim: p.name, killerTeam: shooter.team });
+              }
+              this.events.push({ type: 'kill', killer: shooter.name, victim: p.name, killerTeam: shooter.team, killerClass: shooter.className });
+              p.lastKilledBy = { name: shooter.name, id: shooter.id, className: shooter.className };
+              p.revengeTargetId = shooter.id;
             } else if (b.ownerId.startsWith('cell_')) {
               this.teamKills[b.team]++;
               const cellId = b.ownerId.replace('cell_', '');
               this.events.push({ type: 'cell_kill', cellId, victim: p.name, killerTeam: b.team });
+              p.lastKilledBy = { name: 'Cell Turret', className: 'cell' };
+              p.revengeTargetId = null;
+            } else {
+              p.lastKilledBy = null;
+              p.revengeTargetId = null;
             }
+            // 어시스트 XP (킬러 또는 같은 팀 기여자에게)
+            this._processAssists(p, shooter ? shooter.id : null, b.team);
           }
           break;
         }
@@ -1178,10 +1389,13 @@ class Game {
         if (this._circleCollide(b, mon)) {
           mon.hp -= b.damage;
           mon.lastHitTeam = b.team;
+          // 보스 데미지 기여 추적
+          const bShooter = this.players.get(b.ownerId);
+          if (bShooter) this._trackDamage(mon, bShooter.id, b.damage);
           b.alive = false;
           if (mon.hp <= 0) {
             mon.alive = false;
-            this._onMonsterKill(mon, mon.lastHitTeam);
+            this._onMonsterKill(mon, mon.lastHitTeam, bShooter ? bShooter.id : null);
           }
           break;
         }
@@ -1651,7 +1865,7 @@ class Game {
           const dy = p.y - hz.y;
           if (dx * dx + dy * dy <= hz.radius * hz.radius) {
             const dmg = C.HAZARD_ZONE.DAMAGE_PER_SEC * dt;
-            this._applyDamageToPlayer(p, dmg, null);
+            this._applyDamageToPlayer(p, dmg, null, 'hazard');
           }
         }
         if (hz.timer <= 0) {
@@ -1878,6 +2092,16 @@ class Game {
         nm.wanderTimer = 500;
       }
 
+      // Force return to origin if too far (max distance 300px)
+      if (nm.originX !== undefined && nm.originY !== undefined) {
+        const distFromOrigin = Math.hypot(nm.x - nm.originX, nm.y - nm.originY);
+        if (distFromOrigin > 300 && nm.state !== 'flee') {
+          const angle = Math.atan2(nm.originY - nm.y, nm.originX - nm.x);
+          nm.x += Math.cos(angle) * 60 * dt;
+          nm.y += Math.sin(angle) * 60 * dt;
+        }
+      }
+
       // 반격 (defensive)
       if (nm.behavior === 'defensive' && nm.attackCooldown <= 0) {
         let closest = null, closestDist = nm.attackRange;
@@ -1952,6 +2176,12 @@ class Game {
     return this._dist(a, b) <= a.radius + b.radius;
   }
 
+  _isInOwnSpawnZone(player) {
+    const spawn = this.mapConfig.teamSpawns[player.team];
+    if (!spawn) return false;
+    return this._dist(player, spawn) < C.SPAWN_ZONE_RADIUS;
+  }
+
   // ── 스냅샷 ──
   getSnapshot() {
     const players = [];
@@ -1980,6 +2210,7 @@ class Game {
           captureTime: C.CELL_CAPTURE_TIME,
           rebuildTime: C.CELL_REBUILD_TIME,
         },
+        spawnZoneRadius: C.SPAWN_ZONE_RADIUS,
         decorations: this.mapConfig.decorations || null,
       },
       players,
@@ -2031,6 +2262,8 @@ class Game {
         speedPickup: C.FEATURE_FLAGS.ENABLE_SPEED_PICKUP,
         buffIcons: C.FEATURE_FLAGS.ENABLE_BUFF_ICONS,
       },
+      // Ping System
+      pings: this.pings,
     };
   }
 
@@ -2061,6 +2294,9 @@ class Game {
 
   // ── 봇 AI (지능형: 장애물 회피, 자동 리스폰, 전술 이동) ──
   updateBots() {
+    // 게임 시작/라운드 리셋 후 첫 3초간 봇 AI 비활성화 (스폰 위치 유지)
+    if (Date.now() - this.roundStartTime < 3000) return;
+
     for (const p of this.players.values()) {
       if (!p.isBot) continue;
 
@@ -2180,7 +2416,7 @@ class Game {
       if (this._collidesWithObstacle(lookX, lookY, p.radius + 5)) {
         // 좌/우 탐색해서 열린 방향으로 회전
         let found = false;
-        for (let offset = 0.5; offset <= Math.PI; offset += 0.3) {
+        for (let offset = 0.5, checks = 0; offset <= Math.PI && checks < 5; offset += 0.5, checks++) {
           const tryAngle = desiredAngle + offset * bs.strafeDir;
           const tx = p.x + Math.cos(tryAngle) * lookDist;
           const ty = p.y + Math.sin(tryAngle) * lookDist;
@@ -2212,6 +2448,112 @@ class Game {
       } else {
         p.input.up = false; p.input.down = false;
         p.input.left = false; p.input.right = false;
+      }
+    }
+  }
+
+  // ── 인덕터 자기장 인력 ──
+  _applyMagneticPull(p, dt) {
+    const cls = p.getClassConfig();
+    const pullRange = cls.magneticRange || 180;
+    const pullForce = cls.magneticForce || 40;
+
+    // 범위 내 모든 적에게 인력 적용
+    for (const other of this.players.values()) {
+      if (!other.alive || other.team === p.team) continue;
+      const dist = this._dist(p, other);
+      if (dist > 0 && dist <= pullRange) {
+        const angle = Math.atan2(p.y - other.y, p.x - other.x);
+        const pullX = Math.cos(angle) * pullForce * dt;
+        const pullY = Math.sin(angle) * pullForce * dt;
+        const newX = other.x + pullX;
+        const newY = other.y + pullY;
+        if (!this._collidesWithObstacle(newX, other.y, other.radius)) other.x = newX;
+        if (!this._collidesWithObstacle(other.x, newY, other.radius)) other.y = newY;
+      }
+    }
+  }
+
+  // ── 트랜스포머 아군 버프 오라 ──
+  _applyTransformerAura(p, dt) {
+    const cls = p.getClassConfig();
+    const auraRange = cls.auraRange || 200;
+    const dmgBoost = cls.auraDmgBoost || 0.15;
+    const regen = cls.auraRegen || 2;
+
+    // 범위 내 아군에게 즉시 효과 적용 (버프 아님, 실시간 효과)
+    for (const ally of this.players.values()) {
+      if (!ally.alive || ally.team !== p.team || ally.id === p.id) continue;
+      const dist = this._dist(p, ally);
+      if (dist <= auraRange) {
+        // HP 리젠
+        if (ally.hp < ally.maxHp) {
+          ally.hp = Math.min(ally.maxHp, ally.hp + regen * dt);
+        }
+        // 데미지 부스트는 실시간 적용 (현재는 시각 표시만, 실제 데미지는 _getTransformerAuraDmg에서 계산)
+      }
+    }
+  }
+
+  // ── 트랜스포머 오라 데미지 부스트 계산 (발사 시 호출) ──
+  _getTransformerAuraDmg(player) {
+    let boost = 0;
+    for (const ally of this.players.values()) {
+      if (!ally.alive || ally.team !== player.team) continue;
+      const cls = ally.getClassConfig();
+      if (cls.aura) {
+        const dist = this._dist(player, ally);
+        if (dist <= (cls.auraRange || 200)) {
+          boost = Math.max(boost, cls.auraDmgBoost || 0.15);
+        }
+      }
+    }
+    return boost;
+  }
+
+  // ── 오실레이터 버스트 발사 ──
+  _autoBurstFire(p, dt) {
+    // 버스트 상태 초기화
+    if (!p.burstState) {
+      p.burstState = { inBurst: false, shotsFired: 0, burstDelay: 0 };
+    }
+
+    const cls = p.getClassConfig();
+    const burstCount = cls.burstCount || 3;
+    const burstDelay = cls.burstDelay || 80;
+    const burstCooldown = cls.burstCooldown || 600;
+
+    if (p.burstState.inBurst) {
+      // 버스트 진행 중
+      p.burstState.burstDelay -= dt * 1000;
+      if (p.burstState.burstDelay <= 0 && p.burstState.shotsFired < burstCount) {
+        // 다음 발 발사
+        if (p.autoTargetId) {
+          let targetObj = this._resolveTarget(p.autoTargetId, p.autoTargetType);
+          if (targetObj) {
+            const angle = Math.atan2(targetObj.y - p.y, targetObj.x - p.x);
+            p.angle = angle;
+            this._fireProjectile(p, cls, angle);
+          }
+        } else if (p.className === 'oscillator') {
+          // 타겟 없으면 전방 사격
+          this._fireProjectile(p, cls, p.lastMoveAngle);
+        }
+        p.burstState.shotsFired++;
+        p.burstState.burstDelay = burstDelay;
+      }
+      if (p.burstState.shotsFired >= burstCount) {
+        // 버스트 종료
+        p.burstState.inBurst = false;
+        p.fireCooldown = burstCooldown;
+      }
+    } else {
+      // 버스트 대기 중
+      if (p.fireCooldown <= 0 && (p.autoTargetId || p.className === 'oscillator')) {
+        // 버스트 시작
+        p.burstState.inBurst = true;
+        p.burstState.shotsFired = 0;
+        p.burstState.burstDelay = 0;
       }
     }
   }
