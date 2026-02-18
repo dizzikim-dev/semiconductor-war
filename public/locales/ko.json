@@ -85,8 +85,8 @@
     "selectTier3": "2차 진화를 선택하세요",
     "capacitorDesc": "근접 탱커 — 회전 오비탈 공격 + 보호막",
     "repeaterDesc": "원거리 기동 — 빠른 연사 + 높은 속도",
-    "inductorDesc": "자기장 조작 — 광역 탱커 (4궤도 + 자기 인력)",
-    "transformerDesc": "에너지 변환 — 서포터 (아군 버프 오라 + 강화 보호막)",
+    "inductorDesc": "자기장 조작 — 광역 탱커 (4궤도 + 자기 인력 + 코일 아크 + 전기 마비)",
+    "transformerDesc": "에너지 변환 — 서포터/딜러 전환 (오라 힐 + 전압 변신)",
     "oscillatorDesc": "파동 간섭 — 버스트 딜러 (3연발 + 빠른 기동)",
     "amplifierDesc": "신호 증폭 — 스나이퍼 (원거리 고데미지 + 거리 비례 증폭)"
   },

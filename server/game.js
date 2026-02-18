@@ -203,7 +203,10 @@ class Game {
         const len = Math.sqrt(dx * dx + dy * dy);
         const spdBuff = this._getTeamBuffValue(p.team, 'spd');
         const marketBuff = this._getMarketBuff(p.team);
-        let speed = p.speed * (1 + spdBuff) * (1 + marketBuff.speedModifier);
+        // 트랜스포머 승압 모드: 이동속도 오버라이드
+        const cls = C.CLASSES[p.className];
+        const pSpeed = (p.transformerMode === 'stepUp' && cls && cls.stepUpSpeed) ? cls.stepUpSpeed : p.speed;
+        let speed = pSpeed * (1 + spdBuff) * (1 + marketBuff.speedModifier);
         speed *= (1 - this._getZoneDebuff(p, 'spd'));
         // Admin event zone effects
         speed *= (1 + this._getEventZoneEffect(p, 'speed_boost'));
@@ -213,15 +216,18 @@ class Game {
         const personalSpd = p.getBuffValue('speed_boost');
         if (personalSpd > 0) speed *= (1 + personalSpd);
 
+        // 전기 마비 슬로우 (인덕터)
+        const electroSlow = p.getBuffValue('electro_slow');
+        if (electroSlow > 0) speed *= (1 - electroSlow);
+
         // 해저드 존 내 슬로우
         if (C.FEATURE_FLAGS.ENABLE_HAZARD_ZONES) {
           speed *= (1 - this._getHazardSlow(p));
         }
 
         // TSV 속도 캡 적용
-        const baseSpeed = p.speed;
-        if (speed > baseSpeed * C.TSV_SPEED_CAP) {
-          speed = baseSpeed * C.TSV_SPEED_CAP;
+        if (speed > pSpeed * C.TSV_SPEED_CAP) {
+          speed = pSpeed * C.TSV_SPEED_CAP;
         }
 
         if (this.mapConfig.connectors) {
@@ -460,7 +466,9 @@ class Game {
       });
       this.bullets.push(bullet);
     }
-    p.fireCooldown = cls.attackCooldown;
+    // 전기 마비 공속 슬로우 적용
+    const electroAtkSlow = p.getBuffValue('electro_atk_slow');
+    p.fireCooldown = cls.attackCooldown * (1 + electroAtkSlow);
   }
 
   // ── 캐패시터 오비탈 회전 공격 ──
@@ -481,6 +489,9 @@ class Game {
       hitCooldown = cls.stepUpHitCd;
       orbSpeed = cls.stepUpOrbSpeed || orbSpeed;
     }
+    // 전기 마비 공속 슬로우 (오브 hitCooldown에도 적용)
+    const electroAtkSlowOrb = p.getBuffValue('electro_atk_slow');
+    if (electroAtkSlowOrb > 0) hitCooldown *= (1 + electroAtkSlowOrb);
 
     // 회전 진행
     p.orbAngle += orbSpeed * dt;
@@ -527,6 +538,12 @@ class Game {
           const armorBuff = this._getTeamBuffValue(entity.team, 'armor');
           this._applyDamageToPlayer(entity, damage * (1 - armorBuff), p);
           this._onOrbHit(p, cls, now); // 플럭스/전압 축적
+          // 인덕터 플럭스 버스트 중 오브 적중 → 전기 마비
+          if (p.fluxBursting && cls.electroStunChanceBurst) {
+            if (Math.random() < cls.electroStunChanceBurst) {
+              this._applyElectroStun(entity, cls);
+            }
+          }
         } else if (eType === 'minion') {
           if (entity.team === p.team) continue;
           p.orbHitTimers[entity.id] = now;
@@ -2608,14 +2625,43 @@ class Game {
         }
       }
 
-      // 오브 2개 이상이 범위 내 → 아크 데미지
+      // 오브 2개 이상이 범위 내 → 아크 데미지 + 전기 마비 확률
       if (orbsNearby >= 2) {
         if (!p.coilArcTimers[enemy.id] || now - p.coilArcTimers[enemy.id] >= arcTickMs) {
           p.coilArcTimers[enemy.id] = now;
           this._applyDamageToPlayer(enemy, arcDamage, p);
+          // 전기 마비 (electro stun)
+          const stunChance = p.fluxBursting
+            ? (cls.electroStunChanceBurst || 0.40)
+            : (cls.electroStunChance || 0.20);
+          if (Math.random() < stunChance) {
+            this._applyElectroStun(enemy, cls);
+          }
         }
       }
     }
+  }
+
+  // ── 인덕터: 전기 마비 디버프 적용 ──
+  _applyElectroStun(target, inductorCls) {
+    if (!target.alive) return;
+    target.addBuff({
+      type: 'electro_slow',
+      label: '전기 마비',
+      value: inductorCls.electroSlowSpeed || 0.25,
+      duration: inductorCls.electroStunDuration || 1500,
+      color: '#a855f7',
+      icon: 'zap',
+    });
+    // 공격속도 슬로우도 별도 버프로 관리
+    target.addBuff({
+      type: 'electro_atk_slow',
+      label: '마비(공속)',
+      value: inductorCls.electroSlowAttack || 0.30,
+      duration: inductorCls.electroStunDuration || 1500,
+      color: '#a855f7',
+      icon: 'zap',
+    });
   }
 
   // ── 트랜스포머: 전압 모드 스왑 (나르 스타일) ──

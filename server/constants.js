@@ -122,6 +122,12 @@ const CLASSES = {
     coilArcRange: 130,          // 오브↔적 거리 기준
     coilArcDps: 12,             // 초당 아크 데미지
     coilArcTickInterval: 250,   // 아크 틱 간격(ms)
+    // Electro Stun: 코일 아크/플럭스 버스트 적중 시 확률적 전기 마비
+    electroStunChance: 0.20,    // 아크 틱당 마비 확률 (20%)
+    electroStunChanceBurst: 0.40, // 플럭스 버스트 중 마비 확률 (40%)
+    electroStunDuration: 1500,  // 마비 지속시간 (ms)
+    electroSlowSpeed: 0.25,     // 이동속도 -25%
+    electroSlowAttack: 0.30,    // 공격속도 -30% (쿨다운 +30%)
     shieldMax: 60,
     shieldRechargeDelay: 6000,
     shieldRechargeRate: 15,
@@ -147,7 +153,7 @@ const CLASSES = {
     cellDmgBonus: 0.15,
     // Support aura: allies within range get buffs (stepDown 모드에서만 활성)
     aura: true,
-    auraRange: 200,
+    auraRange: 280,
     auraDmgBoost: 0.15,    // +15% damage to nearby allies
     auraRegen: 1.5,         // 2.5→1.5 너프 (-40%) — 자가힐 과강 조정
     // Voltage Mode Swap (나르 스타일 자동 변신)
@@ -163,6 +169,7 @@ const CLASSES = {
     stepUpHitCd: 450,           // 승압 모드 orbHitCooldown (700→450)
     stepUpShieldMax: 50,        // 승압 모드 보호막 상한 (100→50)
     stepUpOrbSpeed: 4.0,        // 승압 모드 오브 속도 (3.0→4.0)
+    stepUpSpeed: 280,           // 승압 모드 이동속도 (140→280, REPEATER 260 초과)
     shieldMax: 100,
     shieldRechargeDelay: 4000,
     shieldRechargeRate: 25,

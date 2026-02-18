@@ -247,11 +247,12 @@ class Player {
       data.fluxMax = cls.fluxMaxCharge || 10;
       data.fluxBursting = this.fluxBursting;
     }
-    // 트랜스포머: 전압 + 모드
+    // 트랜스포머: 전압 + 모드 + 오라 범위
     if (this.className === 'transformer') {
       data.voltage = Math.round(this.voltage);
       data.voltageMax = cls.voltageMax || 100;
       data.transformerMode = this.transformerMode;
+      data.auraRange = cls.auraRange || 280;
     }
     // 시한 버프 목록
     if (this.activeBuffs.length > 0) {

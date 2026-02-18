@@ -117,6 +117,7 @@ const Renderer = (() => {
     drawBullets(state.bullets);
     drawPulseEffects();
     if (state.pings && me) drawPings(state.pings, me.team);
+    drawTransformerAuraLinks(state.players);
     drawPlayers(state.players, myId, state.teamBuffs);
     drawMapBorder(mapW, mapH);
 
@@ -1493,6 +1494,74 @@ const Renderer = (() => {
     }
   };
 
+  // ── 트랜스포머 오라 링크: stepDown 모드 트랜스포머 → 범위 내 아군 에너지 연결선 ──
+  const drawTransformerAuraLinks = (players) => {
+    if (!players) return;
+    const now = Date.now();
+    for (const tf of players) {
+      if (!tf.alive || tf.className !== 'transformer') continue;
+      if (tf.transformerMode === 'stepUp') continue;
+      const auraR = tf.auraRange || 280;
+      const tfColor = '#34d399'; // 녹색 계열
+
+      for (const ally of players) {
+        if (!ally.alive || ally.team !== tf.team || ally.id === tf.id) continue;
+        const dx = ally.x - tf.x;
+        const dy = ally.y - tf.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > auraR) continue;
+
+        // 거리에 따른 투명도 (가까울수록 밝게)
+        const distRatio = 1 - dist / auraR;
+        const baseAlpha = 0.15 + distRatio * 0.2;
+
+        ctx.save();
+
+        // 에너지 링크 라인 (흐르는 점선)
+        ctx.globalAlpha = baseAlpha;
+        ctx.strokeStyle = tfColor;
+        ctx.lineWidth = 1.5 + distRatio;
+        ctx.setLineDash([4, 4]);
+        ctx.lineDashOffset = -(now / 80) % 8;
+        ctx.beginPath();
+        ctx.moveTo(tf.x, tf.y);
+        ctx.lineTo(ally.x, ally.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // 에너지 파티클: 링크 위를 트랜스포머→아군으로 이동하는 점
+        for (let i = 0; i < 2; i++) {
+          const phase = ((now / 1200 + i * 0.5) % 1);
+          const px = tf.x + dx * phase;
+          const py = tf.y + dy * phase;
+          ctx.globalAlpha = 0.5 * (1 - Math.abs(phase - 0.5) * 2);
+          ctx.fillStyle = tfColor;
+          ctx.beginPath();
+          ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // 아군에게 녹색 글로우 링
+        ctx.globalAlpha = 0.15 + Math.sin(now / 400) * 0.08;
+        ctx.strokeStyle = tfColor;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(ally.x, ally.y, (ally.radius || 15) + 6, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // 아군 위에 작은 + 힐 아이콘
+        ctx.globalAlpha = 0.5 + Math.sin(now / 500) * 0.2;
+        ctx.fillStyle = tfColor;
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText('+', ally.x, ally.y - (ally.radius || 15) - 8);
+
+        ctx.restore();
+      }
+    }
+  };
+
   const drawPlayers = (players, myId, teamBuffs) => {
     for (const p of players) {
       if (!p.alive) continue;
@@ -1615,13 +1684,44 @@ const Renderer = (() => {
         // 인덕터: 육각형 (자기장 탱커) + 보라색 오브
         const isBursting = p.fluxBursting;
 
-        // 버스트 시 바디 글로우
+        // 버스트 시 바디 글로우 + 전기 파동 링
         if (isBursting) {
-          ctx.globalAlpha = 0.25 + Math.sin(Date.now() / 80) * 0.15;
+          const pulse = Math.sin(Date.now() / 80);
+          ctx.globalAlpha = 0.25 + pulse * 0.15;
           ctx.fillStyle = '#e879f9';
           ctx.beginPath();
           ctx.arc(0, 0, p.radius + 14, 0, Math.PI * 2);
           ctx.fill();
+          // 전기 파동 링 (확산)
+          const waveT = (Date.now() % 800) / 800; // 0~1 루프
+          ctx.globalAlpha = 0.4 * (1 - waveT);
+          ctx.strokeStyle = '#c084fc';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(0, 0, p.radius + 8 + waveT * 30, 0, Math.PI * 2);
+          ctx.stroke();
+          // 두 번째 파동 (엇갈림)
+          const waveT2 = ((Date.now() + 400) % 800) / 800;
+          ctx.globalAlpha = 0.3 * (1 - waveT2);
+          ctx.beginPath();
+          ctx.arc(0, 0, p.radius + 8 + waveT2 * 30, 0, Math.PI * 2);
+          ctx.stroke();
+          // 지지직 미니 아크 (바디 주변)
+          ctx.globalAlpha = 0.6;
+          ctx.strokeStyle = '#e9d5ff';
+          ctx.lineWidth = 1.5;
+          for (let s = 0; s < 4; s++) {
+            const ang = Math.random() * Math.PI * 2;
+            const r1 = p.radius + 2;
+            const r2 = p.radius + 8 + Math.random() * 10;
+            const x1 = Math.cos(ang) * r1, y1 = Math.sin(ang) * r1;
+            const x2 = Math.cos(ang + (Math.random() - 0.5) * 0.4) * r2;
+            const y2 = Math.sin(ang + (Math.random() - 0.5) * 0.4) * r2;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+          }
         }
 
         ctx.globalAlpha = 1;
@@ -1647,7 +1747,7 @@ const Renderer = (() => {
         ctx.arc(0, 0, p.radius + 8, 0, Math.PI * 2);
         ctx.stroke();
 
-        // 플럭스 차지 게이지 (본체 아래)
+        // 플럭스 차지 게이지 (본체 아래) — 전류 느낌
         if (p.fluxMax > 0 && !isBursting) {
           const fluxRatio = (p.fluxCharge || 0) / p.fluxMax;
           if (fluxRatio > 0) {
@@ -1657,9 +1757,21 @@ const Renderer = (() => {
             ctx.globalAlpha = 0.4;
             ctx.fillStyle = '#1e1e2e';
             ctx.fillRect(-gW / 2, gY, gW, gH);
-            ctx.globalAlpha = 0.8;
-            ctx.fillStyle = fluxRatio >= 0.8 ? '#e879f9' : '#a855f7';
+            // 80% 이상이면 깜빡이는 전기 느낌
+            const nearFull = fluxRatio >= 0.8;
+            const flicker = nearFull ? (0.7 + Math.sin(Date.now() / 50) * 0.3) : 0.8;
+            ctx.globalAlpha = flicker;
+            ctx.fillStyle = nearFull ? '#e9d5ff' : '#a855f7';
             ctx.fillRect(-gW / 2, gY, gW * fluxRatio, gH);
+            // 게이지 끝단에 미니 스파크
+            if (nearFull) {
+              ctx.globalAlpha = 0.6;
+              ctx.fillStyle = '#ffffff';
+              const sparkX = -gW / 2 + gW * fluxRatio;
+              ctx.beginPath();
+              ctx.arc(sparkX, gY + gH / 2, 2, 0, Math.PI * 2);
+              ctx.fill();
+            }
           }
         }
 
@@ -1694,25 +1806,57 @@ const Renderer = (() => {
             ctx.fill();
           }
 
-          // 코일 아크: 오브 간 전기 연결선 (근처에 적이 있을 때)
-          // 클라이언트에서 간소화: 오브 사이에 항상 미세한 전기선을 그리되
-          // 적이 가까우면 더 밝게 표시
+          // 코일 아크: 오브 간 지지직거리는 전기 번개 (multi-segment lightning)
           if (orbPositions.length >= 2) {
-            const arcAlpha = isBursting ? 0.6 : 0.15;
-            ctx.globalAlpha = arcAlpha;
-            ctx.strokeStyle = '#c084fc';
-            ctx.lineWidth = isBursting ? 2 : 1;
+            const arcAlpha = isBursting ? 0.8 : 0.25;
+            const segments = isBursting ? 6 : 4;
+            const jitter = isBursting ? 14 : 7;
+            const lineW = isBursting ? 2.5 : 1.2;
             for (let i = 0; i < orbPositions.length; i++) {
               const a = orbPositions[i];
               const b = orbPositions[(i + 1) % orbPositions.length];
+              // 메인 번개선
+              ctx.globalAlpha = arcAlpha;
+              ctx.strokeStyle = isBursting ? '#e9d5ff' : '#c084fc';
+              ctx.lineWidth = lineW;
               ctx.beginPath();
-              // 약간의 지그재그 (전기 아크 느낌)
-              const mx = (a.x + b.x) / 2 + (Math.random() - 0.5) * 8;
-              const my = (a.y + b.y) / 2 + (Math.random() - 0.5) * 8;
               ctx.moveTo(a.x, a.y);
-              ctx.lineTo(mx, my);
+              for (let s = 1; s < segments; s++) {
+                const t = s / segments;
+                const lx = a.x + (b.x - a.x) * t + (Math.random() - 0.5) * jitter;
+                const ly = a.y + (b.y - a.y) * t + (Math.random() - 0.5) * jitter;
+                ctx.lineTo(lx, ly);
+              }
               ctx.lineTo(b.x, b.y);
               ctx.stroke();
+              // 글로우 (두꺼운 반투명 하층)
+              ctx.globalAlpha = arcAlpha * 0.3;
+              ctx.strokeStyle = '#a855f7';
+              ctx.lineWidth = lineW + 4;
+              ctx.beginPath();
+              ctx.moveTo(a.x, a.y);
+              for (let s = 1; s < segments; s++) {
+                const t = s / segments;
+                const lx = a.x + (b.x - a.x) * t + (Math.random() - 0.5) * jitter;
+                const ly = a.y + (b.y - a.y) * t + (Math.random() - 0.5) * jitter;
+                ctx.lineTo(lx, ly);
+              }
+              ctx.lineTo(b.x, b.y);
+              ctx.stroke();
+            }
+            // 버스트 중 전기 스파크 파티클
+            if (isBursting) {
+              ctx.globalAlpha = 0.7;
+              ctx.fillStyle = '#e9d5ff';
+              for (let s = 0; s < 3; s++) {
+                const oi = Math.floor(Math.random() * orbPositions.length);
+                const ox = orbPositions[oi].x + (Math.random() - 0.5) * 20;
+                const oy = orbPositions[oi].y + (Math.random() - 0.5) * 20;
+                const sz = 1.5 + Math.random() * 2;
+                ctx.beginPath();
+                ctx.arc(ox, oy, sz, 0, Math.PI * 2);
+                ctx.fill();
+              }
             }
           }
         }
@@ -1754,18 +1898,35 @@ const Renderer = (() => {
         ctx.textBaseline = 'middle';
         ctx.fillText(isStepUp ? '\u25B2' : '\u25BD', 0, 0);
 
-        // 아군 버프 오라 (stepDown만)
+        // 아군 버프 오라 (stepDown만) — 실제 auraRange 사용 + 펄스
         if (!isStepUp) {
-          ctx.globalAlpha = 0.1;
+          const auraR = p.auraRange || 280;
+          const pulse = 0.5 + Math.sin(Date.now() / 600) * 0.5; // 0~1 사이클
+
+          // 외곽 범위 원 (펄스하는 점선)
+          ctx.globalAlpha = 0.08 + pulse * 0.06;
           ctx.fillStyle = tfAccent;
           ctx.beginPath();
-          ctx.arc(0, 0, r * 2.5, 0, Math.PI * 2);
+          ctx.arc(0, 0, auraR, 0, Math.PI * 2);
           ctx.fill();
-          ctx.globalAlpha = 0.3;
+
+          ctx.globalAlpha = 0.2 + pulse * 0.15;
+          ctx.strokeStyle = tfAccent;
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([8, 6]);
+          ctx.beginPath();
+          ctx.arc(0, 0, auraR, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          // 내부 펄스 링 (확장 애니메이션)
+          const ringPhase = (Date.now() % 2000) / 2000; // 0~1 반복
+          const ringR = r + (auraR - r) * ringPhase;
+          ctx.globalAlpha = 0.25 * (1 - ringPhase);
           ctx.strokeStyle = tfAccent;
           ctx.lineWidth = 2;
           ctx.beginPath();
-          ctx.arc(0, 0, r * 2.5, 0, Math.PI * 2);
+          ctx.arc(0, 0, ringR, 0, Math.PI * 2);
           ctx.stroke();
         } else {
           // 승압 모드: 에너지 방출 링
@@ -1996,6 +2157,45 @@ const Renderer = (() => {
       }
 
       ctx.restore();
+
+      // ── 전기 마비 이펙트 (electro_slow 디버프 보유 시) ──
+      const hasElectroStun = p.activeBuffs && p.activeBuffs.some(b => b.type === 'electro_slow');
+      if (hasElectroStun) {
+        const now = Date.now();
+        // 보라색 전기 오버레이 (깜빡임)
+        ctx.globalAlpha = 0.12 + Math.sin(now / 60) * 0.08;
+        ctx.fillStyle = '#a855f7';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius + 4, 0, Math.PI * 2);
+        ctx.fill();
+        // 지지직 스파크 (바디 주변 랜덤 번개)
+        ctx.globalAlpha = 0.7;
+        ctx.strokeStyle = '#e9d5ff';
+        ctx.lineWidth = 1.5;
+        for (let s = 0; s < 3; s++) {
+          const ang = Math.random() * Math.PI * 2;
+          const r1 = p.radius * 0.5;
+          const r2 = p.radius + 5 + Math.random() * 8;
+          const x1 = p.x + Math.cos(ang) * r1;
+          const y1 = p.y + Math.sin(ang) * r1;
+          const mx = p.x + Math.cos(ang + (Math.random() - 0.5) * 0.6) * ((r1 + r2) / 2);
+          const my = p.y + Math.sin(ang + (Math.random() - 0.5) * 0.6) * ((r1 + r2) / 2);
+          const x2 = p.x + Math.cos(ang + (Math.random() - 0.5) * 0.8) * r2;
+          const y2 = p.y + Math.sin(ang + (Math.random() - 0.5) * 0.8) * r2;
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(mx, my);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+        }
+        // ⚡ 마비 아이콘 (머리 위)
+        ctx.globalAlpha = 0.6 + Math.sin(now / 100) * 0.3;
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillText('⚡', p.x, p.y - p.radius - 22);
+        ctx.globalAlpha = 1;
+      }
 
       // HP 바 + 데미지 고스트
       const hpW = 40, hpH = 4;

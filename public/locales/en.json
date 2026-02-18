@@ -85,8 +85,8 @@
     "selectTier3": "Choose your 2nd evolution",
     "capacitorDesc": "Melee Tank — Orbital attack + Shield",
     "repeaterDesc": "Ranged Mobile — Fast fire + High speed",
-    "inductorDesc": "Magnetic Control — AoE Tank (4 orbs + Pull)",
-    "transformerDesc": "Energy Convert — Support (Ally aura + Shield)",
+    "inductorDesc": "Magnetic Control — AoE Tank (4 orbs + Pull + Coil Arc + Electro Stun)",
+    "transformerDesc": "Energy Convert — Support/DPS Toggle (Aura Heal + Voltage Mode Swap)",
     "oscillatorDesc": "Wave Burst — Burst DPS (3-shot + Fast)",
     "amplifierDesc": "Signal Amplify — Sniper (Long range + 2x DMG)"
   },
