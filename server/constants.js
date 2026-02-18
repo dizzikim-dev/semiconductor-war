@@ -298,8 +298,8 @@ const MONSTER_TYPES = [
 ];
 
 // ─── 아이템 픽업 ───
-const PICKUP_SPAWN_INTERVAL = 10000; // ms
-const PICKUP_MAX = 10;
+const PICKUP_SPAWN_INTERVAL = 6000;  // ms (10s→6s, 아이템 더 자주 스폰)
+const PICKUP_MAX = 15;               // 10→15, 맵에 아이템 더 많이 유지
 const PICKUP_RADIUS = 14;
 const PICKUP_TYPES = {
   WAFER: { name: 'Wafer', heal: 30, color: '#c0c0c0' },
@@ -368,9 +368,9 @@ const HAZARD_ZONE = {
   RADIUS: 160,               // 해저드 존 반경 (px)
   DAMAGE_PER_SEC: 18,        // 초당 데미지 (6초 내 최대 108 = RESISTOR HP 90%)
   SLOW_FACTOR: 0.15,         // 존 내 이동속도 감소율 (15%)
-  SPAWN_INTERVAL: 25000,     // 자동 스폰 주기 (ms)
-  SPAWN_COOLDOWN: 8000,      // 같은 지점 재스폰 쿨다운 (ms)
-  MAX_ACTIVE: 2,             // 동시 최대 활성 해저드 수
+  SPAWN_INTERVAL: 15000,     // 자동 스폰 주기 (ms) — 25s→15s 빈도 증가
+  SPAWN_COOLDOWN: 5000,      // 같은 지점 재스폰 쿨다운 (ms) — 8s→5s
+  MAX_ACTIVE: 4,             // 동시 최대 활성 해저드 수 — 2→4 다중 출현
   COLOR_WARN: '#ff6b00',     // 경고 색상 (주황)
   COLOR_ACTIVE: '#ff2040',   // 활성 색상 (적색)
 };

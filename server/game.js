@@ -1586,16 +1586,16 @@ class Game {
       if (alivePickups.length < C.PICKUP_MAX) {
         const roll = Math.random();
         let type;
-        if (C.FEATURE_FLAGS.ENABLE_SPEED_PICKUP && roll < 0.10) {
-          type = 'TSV_BOOSTER';   // 10%
-        } else if (roll < 0.225) {
-          type = 'PHOTORESIST';   // 12.5%
-        } else if (roll < 0.35) {
-          type = 'CMP_PAD';       // 12.5%
-        } else if (roll < 0.65) {
-          type = 'WAFER';         // 30%
+        if (C.FEATURE_FLAGS.ENABLE_SPEED_PICKUP && roll < 0.20) {
+          type = 'TSV_BOOSTER';   // 20% (10→20%)
+        } else if (roll < 0.30) {
+          type = 'PHOTORESIST';   // 10% (12.5→10%)
+        } else if (roll < 0.40) {
+          type = 'CMP_PAD';       // 10% (12.5→10%)
+        } else if (roll < 0.60) {
+          type = 'WAFER';         // 20% (30→20%)
         } else {
-          type = 'EUV';           // 35%
+          type = 'EUV';           // 40% (35→40%)
         }
         this.pickups.push(new Pickup(type, this.worldW, this.worldH));
       }
@@ -1835,12 +1835,13 @@ class Game {
     // 만료된 존 제거
     this.hazardZones = this.hazardZones.filter(hz => hz.phase !== 'expired');
 
-    // 새 해저드 스폰
+    // 새 해저드 스폰 (한 주기에 1~2개 동시 생성)
     this.hazardSpawnTimer += dt * 1000;
     if (this.hazardSpawnTimer >= C.HAZARD_ZONE.SPAWN_INTERVAL) {
       this.hazardSpawnTimer = 0;
       const activeCount = this.hazardZones.filter(hz => hz.phase !== 'expired').length;
-      if (activeCount < C.HAZARD_ZONE.MAX_ACTIVE) {
+      const spawnCount = Math.min(2, C.HAZARD_ZONE.MAX_ACTIVE - activeCount);
+      for (let i = 0; i < spawnCount; i++) {
         const pos = this._pickHazardPosition();
         if (pos) {
           const hz = {

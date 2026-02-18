@@ -433,19 +433,19 @@ INDUCTOR  TRANSFORMER  OSCILLATOR  AMPLIFIER
 
 | 항목 | 값 |
 |------|----|
-| 스폰 주기 | 10초마다 |
-| 동시 최대 | 10개 |
+| 스폰 주기 | 6초마다 |
+| 동시 최대 | 15개 |
 | 반경 | 14 px |
 
 ### 아이템 종류
 
 | 아이템 | 색상 | 형태 | 효과 | 스폰 확률 |
 |--------|------|------|------|-----------|
-| **Wafer** (웨이퍼) | 은색 `#c0c0c0` | 다이아몬드 | HP **+30** 즉시 회복 | 30% |
-| **EUV** (노광장비) | 금색 `#ffd700` | 다이아몬드 | **XP +3** 경험치 획득 | 35% |
-| **TSV Booster** (관통전극) | 시안 `#00e5ff` | 다이아몬드 | 이동속도 **+20%**, **8초간** 지속 | 10% |
-| **Photoresist** (포토레지스트) | 보라 `#9b59b6` | 육각형 | 데미지 실드 **40HP**, **10초간** 지속 | 12.5% |
-| **CMP Pad** (CMP 패드) | 주황 `#e67e22` | 원형 | HP **3/s** 회복, **8초간** 지속 | 12.5% |
+| **EUV** (노광장비) | 금색 `#ffd700` | 다이아몬드 | **XP +3** 경험치 획득 | 40% |
+| **TSV Booster** (관통전극) | 시안 `#00e5ff` | 다이아몬드 | 이동속도 **+20%**, **8초간** 지속 | 20% |
+| **Wafer** (웨이퍼) | 은색 `#c0c0c0` | 다이아몬드 | HP **+30** 즉시 회복 | 20% |
+| **Photoresist** (포토레지스트) | 보라 `#9b59b6` | 육각형 | 데미지 실드 **40HP**, **10초간** 지속 | 10% |
+| **CMP Pad** (CMP 패드) | 주황 `#e67e22` | 원형 | HP **3/s** 회복, **8초간** 지속 | 10% |
 
 - EUV는 경험치를 부여하여 레벨업에 기여 (이전의 영구 데미지 부스트에서 변경)
 - TSV Booster는 시한 버프로 사망 시 소멸, 동일 아이템 재획득 시 시간 갱신 (중복 불가)
@@ -529,7 +529,7 @@ neutral ──(피격으로 HP 0)──→ destroyed
 ### 동작 흐름
 
 ```
-[대기] ──(25초 쿨다운)──→ [경고: 1.2초]
+[대기] ──(15초 쿨다운)──→ [경고: 1.2초]
                               │
                               ▼ 깜빡이는 주황 링 + "PLASMA ETCH" 텍스트
                          [활성: 6초]
@@ -554,8 +554,8 @@ neutral ──(피격으로 HP 0)──→ destroyed
 | 반경 | 160 px | `HAZARD_ZONE.RADIUS` |
 | 초당 데미지 | 18 (6초 = 최대 108) | `HAZARD_ZONE.DAMAGE_PER_SEC` |
 | 슬로우 | 15% 이동속도 감소 | `HAZARD_ZONE.SLOW_FACTOR` |
-| 스폰 주기 | 25초 | `HAZARD_ZONE.SPAWN_INTERVAL` |
-| 동시 최대 | 2개 | `HAZARD_ZONE.MAX_ACTIVE` |
+| 스폰 주기 | 15초 | `HAZARD_ZONE.SPAWN_INTERVAL` |
+| 동시 최대 | 4개 (한 주기에 1~2개 동시 생성) | `HAZARD_ZONE.MAX_ACTIVE` |
 
 ### 기능 플래그
 `ENABLE_HAZARD_ZONES` (기본: `true`, 환경변수 오버라이드 가능)
@@ -868,7 +868,9 @@ fade-in (0.3초) → hold (3초) → fade-out (0.5초) → 제거
 | `HAZARD_ZONE.RADIUS` | 160 px | 해저드 반경 |
 | `HAZARD_ZONE.DAMAGE_PER_SEC` | 18 | 초당 데미지 |
 | `HAZARD_ZONE.SLOW_FACTOR` | 0.15 | 슬로우 비율 |
-| `HAZARD_ZONE.MAX_ACTIVE` | 2 | 동시 최대 수 |
+| `HAZARD_ZONE.SPAWN_INTERVAL` | 15000 ms | 스폰 주기 |
+| `HAZARD_ZONE.SPAWN_COOLDOWN` | 5000 ms | 같은 지점 재스폰 쿨다운 |
+| `HAZARD_ZONE.MAX_ACTIVE` | 4 | 동시 최대 수 |
 | `TSV_SPEED_CAP` | 1.30 | 최대 속도 배율 |
 
 ### 중립 몹 상수
@@ -893,7 +895,8 @@ fade-in (0.3초) → hold (3초) → fade-out (0.5초) → 제거
 
 | 상수 | 값 | 설명 |
 |------|----|------|
-| `PICKUP_MAX` | 10 | 동시 최대 아이템 수 |
+| `PICKUP_SPAWN_INTERVAL` | 6000 ms | 아이템 스폰 주기 |
+| `PICKUP_MAX` | 15 | 동시 최대 아이템 수 |
 | `PHOTORESIST.shieldAmount` | 40 HP | 포토레지스트 실드량 |
 | `PHOTORESIST.duration` | 10000 ms | 포토레지스트 지속 |
 | `CMP_PAD.regenRate` | 3 HP/s | CMP 패드 초당 회복량 |
@@ -962,7 +965,7 @@ fade-in (0.3초) → hold (3초) → fade-out (0.5초) → 제거
 - [ ] CMP Pad 회복이 최대 HP를 초과하지 않는가
 - [ ] CMP Pad가 8초 후 만료되는가
 - [ ] 신규 아이템이 올바른 형태(육각형/원형)로 렌더링되는가
-- [ ] 스폰 비율이 Wafer 30% / EUV 35% / TSV 10% / Photoresist 12.5% / CMP 12.5%인가
+- [ ] 스폰 비율이 EUV 40% / TSV 20% / Wafer 20% / Photoresist 10% / CMP 10%인가
 
 ### F) 교육 툴팁
 - [ ] 오브젝트에 150px 이내로 접근 시 툴팁이 표시되는가
