@@ -12,7 +12,7 @@ const C = require('./constants');
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
+const DATA_DIR = process.env.PERSISTENT_DATA_DIR || path.join(__dirname, '..', 'data');
 const HISTORY_FILE = path.join(DATA_DIR, 'chat-history.json');
 
 class ChatService {

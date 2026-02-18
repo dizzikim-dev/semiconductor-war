@@ -5,7 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
+const DATA_DIR = process.env.PERSISTENT_DATA_DIR || path.join(__dirname, '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'users.json');
 const SAVE_DEBOUNCE_MS = 2000;
 const MAX_SESSIONS_PER_USER = 50;

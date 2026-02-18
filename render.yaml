@@ -2,12 +2,18 @@ services:
   - type: web
     name: semiconductor-war
     runtime: node
-    plan: free
+    plan: starter
     region: singapore
     buildCommand: npm install
     startCommand: node server/index.js
+    disk:
+      name: game-data
+      mountPath: /data
+      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PERSISTENT_DATA_DIR
+        value: /data
       - key: ADMIN_PASSWORD
         generateValue: true
