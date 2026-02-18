@@ -2,6 +2,7 @@ const C = require('./constants');
 const { Player, Bullet, Minion, Monster, BossBullet, BossDrone, Pickup, CellTurret, NeutralMob } = require('./entities');
 const { getMapConfig, DEFAULT_MAP_ID } = require('./maps');
 const EventEngine = require('./market/event-engine');
+const SpatialHash = require('./spatialHash');
 
 class Game {
   constructor(mapId) {
@@ -73,6 +74,9 @@ class Game {
 
     // ── Ping System ──
     this.pings = [];  // { id, x, y, type, team, playerName, createdAt }
+
+    // ── Spatial Hash (충돌 검사 최적화) ──
+    this.spatialHash = new SpatialHash(200);
 
     console.log(`[Game] Map loaded: ${this.mapConfig.name} (${this.mapId})`);
   }
@@ -168,6 +172,21 @@ class Game {
 
     if (now - this.roundStartTime >= C.ROUND_DURATION) {
       this.resetRound();
+    }
+
+    // Spatial Hash 재구축 (매 틱) — _shType 태그로 엔티티 유형 식별
+    this.spatialHash.clear();
+    for (const p of this.players.values()) {
+      if (p.alive) { p._shType = 'player'; this.spatialHash.insert(p); }
+    }
+    for (const m of this.minions) {
+      if (m.alive) { m._shType = 'minion'; this.spatialHash.insert(m); }
+    }
+    for (const mon of this.monsters) {
+      if (mon.alive) { mon._shType = 'monster'; this.spatialHash.insert(mon); }
+    }
+    for (const nm of this.neutralMobs) {
+      if (nm.alive) { nm._shType = 'neutralMob'; this.spatialHash.insert(nm); }
     }
 
     this._updatePlayers(dt, now);
@@ -329,7 +348,7 @@ class Game {
     }
   }
 
-  // ── 오토 타겟팅: 가장 가까운 적 찾기 ──
+  // ── 오토 타겟팅: Spatial Hash로 가장 가까운 적 찾기 ──
   _findAutoTarget(p) {
     const cls = p.getClassConfig();
     // 캐패시터는 오비탈 범위를 타겟팅 범위로 사용 (방향 전환용)
@@ -338,75 +357,51 @@ class Game {
     let bestDist = range;
     let bestPriorityIdx = C.AUTO_TARGET_PRIORITY.length;
 
-    // 적 플레이어
-    const playerPriIdx = C.AUTO_TARGET_PRIORITY.indexOf('player');
-    if (playerPriIdx >= 0 && playerPriIdx < bestPriorityIdx) {
-      for (const other of this.players.values()) {
-        if (!other.alive || other.team === p.team) continue;
-        if (other.invulnTimer > 0) continue;
-        const d = this._dist(p, other);
-        if (d <= range && (playerPriIdx < bestPriorityIdx || d < bestDist)) {
-          bestTarget = { id: other.id, type: 'player', x: other.x, y: other.y };
-          bestDist = d;
-          bestPriorityIdx = playerPriIdx;
-        }
+    // Spatial Hash로 범위 내 후보만 탐색
+    const candidates = this.spatialHash.query(p.x, p.y, range);
+
+    for (const entity of candidates) {
+      if (!entity.alive) continue;
+      const type = entity._shType;
+      if (!type) continue;
+
+      let priIdx;
+      if (type === 'player') {
+        if (entity.id === p.id || entity.team === p.team) continue;
+        if (entity.invulnTimer > 0) continue;
+        priIdx = C.AUTO_TARGET_PRIORITY.indexOf('player');
+      } else if (type === 'monster') {
+        priIdx = C.AUTO_TARGET_PRIORITY.indexOf('monster');
+      } else if (type === 'minion') {
+        if (entity.team === p.team) continue;
+        priIdx = C.AUTO_TARGET_PRIORITY.indexOf('minion');
+      } else if (type === 'neutralMob') {
+        priIdx = C.AUTO_TARGET_PRIORITY.length; // 가장 낮은 우선순위
+      } else {
+        continue;
+      }
+
+      if (priIdx < 0) continue;
+      const d = this._dist(p, entity);
+      if (d <= range && (priIdx < bestPriorityIdx || (priIdx === bestPriorityIdx && d < bestDist))) {
+        bestTarget = { id: entity.id, type, x: entity.x, y: entity.y };
+        bestDist = d;
+        bestPriorityIdx = priIdx;
       }
     }
 
-    // 중립 보스 (양팀 공격 가능)
-    const monsterPriIdx = C.AUTO_TARGET_PRIORITY.indexOf('monster');
-    if (monsterPriIdx >= 0) {
-      for (const mon of this.monsters) {
-        if (!mon.alive) continue;
-        const d = this._dist(p, mon);
-        if (d <= range && (monsterPriIdx < bestPriorityIdx || d < bestDist)) {
-          bestTarget = { id: mon.id, type: 'monster', x: mon.x, y: mon.y };
-          bestDist = d;
-          bestPriorityIdx = monsterPriIdx;
-        }
-      }
-    }
-
-    // 적 셀 (파괴 가능한 상태만)
+    // 적 셀 (Spatial Hash에 넣지 않으므로 전체 순회 유지 — 개수 적음)
     const cellPriIdx = C.AUTO_TARGET_PRIORITY.indexOf('cell');
-    if (cellPriIdx >= 0 && cellPriIdx < bestPriorityIdx) {
+    if (cellPriIdx >= 0 && cellPriIdx <= bestPriorityIdx) {
       for (const cell of this.cells) {
         if (cell.ownerTeam === p.team) continue;
         if (cell.state === 'destroyed' || cell.state === 'rebuilding') continue;
         if (cell.shieldTimer > 0) continue;
         const d = this._dist(p, cell);
-        if (d <= range && (cellPriIdx < bestPriorityIdx || d < bestDist)) {
+        if (d <= range && (cellPriIdx < bestPriorityIdx || (cellPriIdx === bestPriorityIdx && d < bestDist))) {
           bestTarget = { id: cell.id, type: 'cell', x: cell.x, y: cell.y };
           bestDist = d;
           bestPriorityIdx = cellPriIdx;
-        }
-      }
-    }
-
-    // 적 미니언
-    const minionPriIdx = C.AUTO_TARGET_PRIORITY.indexOf('minion');
-    if (minionPriIdx >= 0 && minionPriIdx < bestPriorityIdx) {
-      for (const m of this.minions) {
-        if (!m.alive || m.team === p.team) continue;
-        const d = this._dist(p, m);
-        if (d <= range && (minionPriIdx < bestPriorityIdx || d < bestDist)) {
-          bestTarget = { id: m.id, type: 'minion', x: m.x, y: m.y };
-          bestDist = d;
-          bestPriorityIdx = minionPriIdx;
-        }
-      }
-    }
-
-    // 중립 몹 (미니언보다 낮은 우선순위)
-    const neutralPriIdx = C.AUTO_TARGET_PRIORITY.length; // 가장 낮은 우선순위
-    if (neutralPriIdx < bestPriorityIdx || (bestTarget === null)) {
-      for (const nm of this.neutralMobs) {
-        if (!nm.alive) continue;
-        const d = this._dist(p, nm);
-        if (d <= range && (neutralPriIdx < bestPriorityIdx || d < bestDist)) {
-          bestTarget = { id: nm.id, type: 'neutralMob', x: nm.x, y: nm.y };
-          bestDist = d;
-          bestPriorityIdx = neutralPriIdx;
         }
       }
     }
@@ -521,72 +516,55 @@ class Game {
       const ox = p.x + Math.cos(angle) * orbRadius;
       const oy = p.y + Math.sin(angle) * orbRadius;
 
-      // vs 적 플레이어
-      for (const other of this.players.values()) {
-        if (!other.alive || other.team === p.team) continue;
-        if (other.invulnTimer > 0) continue;
-        if (p.orbHitTimers[other.id] && now - p.orbHitTimers[other.id] < hitCooldown) continue;
-        const dx = ox - other.x, dy = oy - other.y;
-        if (dx * dx + dy * dy <= (orbSize + other.radius) * (orbSize + other.radius)) {
-          p.orbHitTimers[other.id] = now;
-          const armorBuff = this._getTeamBuffValue(other.team, 'armor');
-          this._applyDamageToPlayer(other, damage * (1 - armorBuff), p);
-        }
-      }
+      // Spatial Hash로 오브 근처 엔티티만 탐색
+      const orbCandidates = this.spatialHash.query(ox, oy, orbSize + 40);
+      for (const entity of orbCandidates) {
+        if (!entity.alive) continue;
+        if (p.orbHitTimers[entity.id] && now - p.orbHitTimers[entity.id] < hitCooldown) continue;
+        const dx = ox - entity.x, dy = oy - entity.y;
+        const collDist = orbSize + (entity.radius || 20);
+        if (dx * dx + dy * dy > collDist * collDist) continue;
 
-      // vs 적 미니언
-      for (const m of this.minions) {
-        if (!m.alive || m.team === p.team) continue;
-        if (p.orbHitTimers[m.id] && now - p.orbHitTimers[m.id] < hitCooldown) continue;
-        const dx = ox - m.x, dy = oy - m.y;
-        if (dx * dx + dy * dy <= (orbSize + m.radius) * (orbSize + m.radius)) {
-          p.orbHitTimers[m.id] = now;
-          m.hp -= damage;
-          if (m.hp <= 0) {
-            m.alive = false;
+        const eType = entity._shType;
+        if (eType === 'player') {
+          if (entity.id === p.id || entity.team === p.team) continue;
+          if (entity.invulnTimer > 0) continue;
+          p.orbHitTimers[entity.id] = now;
+          const armorBuff = this._getTeamBuffValue(entity.team, 'armor');
+          this._applyDamageToPlayer(entity, damage * (1 - armorBuff), p);
+        } else if (eType === 'minion') {
+          if (entity.team === p.team) continue;
+          p.orbHitTimers[entity.id] = now;
+          entity.hp -= damage;
+          if (entity.hp <= 0) {
+            entity.alive = false;
             this._grantXp(p, 'minionKill');
           }
-        }
-      }
-
-      // vs 몬스터
-      for (const mon of this.monsters) {
-        if (!mon.alive) continue;
-        if (p.orbHitTimers[mon.id] && now - p.orbHitTimers[mon.id] < hitCooldown) continue;
-        const dx = ox - mon.x, dy = oy - mon.y;
-        if (dx * dx + dy * dy <= (orbSize + mon.radius) * (orbSize + mon.radius)) {
-          p.orbHitTimers[mon.id] = now;
-          mon.hp -= damage;
-          mon.lastHitTeam = p.team;
-          this._trackDamage(mon, p.id, damage);
-          if (mon.hp <= 0) {
-            mon.alive = false;
-            this._onMonsterKill(mon, p.team, p.id);
+        } else if (eType === 'monster') {
+          p.orbHitTimers[entity.id] = now;
+          entity.hp -= damage;
+          entity.lastHitTeam = p.team;
+          this._trackDamage(entity, p.id, damage);
+          if (entity.hp <= 0) {
+            entity.alive = false;
+            this._onMonsterKill(entity, p.team, p.id);
           }
-        }
-      }
-
-      // vs 중립 몹
-      for (const nm of this.neutralMobs) {
-        if (!nm.alive) continue;
-        if (p.orbHitTimers[nm.id] && now - p.orbHitTimers[nm.id] < hitCooldown) continue;
-        const dx = ox - nm.x, dy = oy - nm.y;
-        if (dx * dx + dy * dy <= (orbSize + nm.radius) * (orbSize + nm.radius)) {
-          p.orbHitTimers[nm.id] = now;
-          nm.hp -= damage;
-          if (nm.behavior === 'passive' && !nm.fleeing) {
-            nm.fleeing = true;
-            nm.fleeTimer = nm.config.fleeDuration || 2000;
-            const fAngle = Math.atan2(nm.y - p.y, nm.x - p.x);
-            nm.fleeDx = Math.cos(fAngle);
-            nm.fleeDy = Math.sin(fAngle);
+        } else if (eType === 'neutralMob') {
+          p.orbHitTimers[entity.id] = now;
+          entity.hp -= damage;
+          if (entity.behavior === 'passive' && !entity.fleeing) {
+            entity.fleeing = true;
+            entity.fleeTimer = entity.config.fleeDuration || 2000;
+            const fAngle = Math.atan2(entity.y - p.y, entity.x - p.x);
+            entity.fleeDx = Math.cos(fAngle);
+            entity.fleeDy = Math.sin(fAngle);
           }
-          if (nm.hp <= 0) {
-            nm.alive = false;
-            p.score += nm.xpReward;
-            p.grantXp(nm.xpReward);
-            this.events.push({ type: 'neutral_kill', mobName: nm.name, playerId: p.id });
-            this._neutralRespawnQueue.push({ type: nm.type, timer: nm.config.respawnDelay });
+          if (entity.hp <= 0) {
+            entity.alive = false;
+            p.score += entity.xpReward;
+            p.grantXp(entity.xpReward);
+            this.events.push({ type: 'neutral_kill', mobName: entity.name, playerId: p.id });
+            this._neutralRespawnQueue.push({ type: entity.type, timer: entity.config.respawnDelay });
           }
         }
       }
@@ -856,23 +834,19 @@ class Game {
     for (const m of this.minions) {
       if (!m.alive) continue;
 
-      // 가장 가까운 적 찾기
-      let closestDist = Infinity;
+      // 가장 가까운 적 찾기 (spatialHash로 후보 축소)
+      const aggroRange = 200;
+      let closestDistSq = Infinity;
       let closestTarget = null;
 
-      for (const p of this.players.values()) {
-        if (p.team === m.team || !p.alive) continue;
-        const d = this._dist(m, p);
-        if (d < closestDist) { closestDist = d; closestTarget = p; }
+      const nearby = this.spatialHash.query(m.x, m.y, aggroRange);
+      for (const ent of nearby) {
+        if (ent === m || ent.team === m.team || !ent.alive) continue;
+        if (ent._shType !== 'player' && ent._shType !== 'minion') continue;
+        const dsq = this._distSq(m, ent);
+        if (dsq < closestDistSq) { closestDistSq = dsq; closestTarget = ent; }
       }
-      for (const other of this.minions) {
-        if (other.team === m.team || !other.alive) continue;
-        const d = this._dist(m, other);
-        if (d < closestDist) { closestDist = d; closestTarget = other; }
-      }
-
-      // 적이 가까우면 공격, 아니면 웨이포인트 따라 이동
-      const aggroRange = 200;
+      const closestDist = closestTarget ? Math.sqrt(closestDistSq) : Infinity;
       let targetX, targetY;
 
       if (closestTarget && closestDist < aggroRange) {
@@ -1299,110 +1273,95 @@ class Game {
     }
   }
 
-  // ── 총알 충돌 ──
+  // ── 총알 충돌 (Spatial Hash 최적화 + shield 버그 수정) ──
   _checkBulletCollisions(now) {
     for (const b of this.bullets) {
       if (!b.alive) continue;
 
-      // vs 적 플레이어 (보호막 흡수 포함)
-      for (const p of this.players.values()) {
-        if (!p.alive || p.team === b.team) continue;
-        if (p.invulnTimer > 0) continue;
-        if (this._isInOwnSpawnZone(p)) continue; // 스폰 보호 존
-        if (this._circleCollide(b, p)) {
-          const armorBuff = this._getTeamBuffValue(p.team, 'armor');
-          let dmg = b.damage * (1 - armorBuff);
+      // Spatial Hash로 총알 근처 엔티티만 탐색
+      const candidates = this.spatialHash.query(b.x, b.y, b.radius + 40);
+      for (const entity of candidates) {
+        if (!entity.alive) continue;
+        const eType = entity._shType;
+
+        if (eType === 'player') {
+          if (entity.team === b.team) continue;
+          if (entity.invulnTimer > 0) continue;
+          if (!this._circleCollide(b, entity)) continue;
+
+          const armorBuff = this._getTeamBuffValue(entity.team, 'armor');
+          const dmg = b.damage * (1 - armorBuff);
           b.alive = false;
 
-          // 보호막 흡수
-          if (p.shield > 0) {
-            if (p.shield >= dmg) {
-              p.shield -= dmg; dmg = 0;
-            } else {
-              dmg -= p.shield; p.shield = 0;
-            }
-            if (p.shield <= 0) {
-              const pcls = C.CLASSES[p.className];
-              p.shieldRechargeTimer = (pcls && pcls.shieldRechargeDelay) || 5000;
-            }
-          }
+          // _applyDamageToPlayer로 통일 — shield(캐패시터+Photoresist) + 킬 로직 모두 처리
+          const shooter = this.players.get(b.ownerId);
+          const source = b.ownerId.startsWith('cell_')
+            ? { typeName: 'Cell Turret', className: 'cell', team: b.team }
+            : null;
+          this._applyDamageToPlayer(entity, dmg, shooter, source);
 
-          // 데미지 기여 추적
-          const shooterForTrack = this.players.get(b.ownerId);
-          if (shooterForTrack && dmg > 0) this._trackDamage(p, shooterForTrack.id, dmg);
-
-          if (dmg > 0) p.hp -= dmg;
-          if (p.hp <= 0) {
-            p.hp = 0; p.alive = false; p.deaths++;
-            p.respawnTimer = C.PLAYER_RESPAWN_DELAY;
-            p.xp = Math.floor(p.xp * (1 - C.XP_LOSS_ON_DEATH));
-            const shooter = shooterForTrack;
-            if (shooter) {
-              shooter.kills++;
-              this.teamKills[shooter.team]++;
-              const isRevenge = shooter.revengeTargetId === p.id;
-              this._grantXp(shooter, 'playerKill');
-              if (isRevenge) {
-                this._grantXp(shooter, 'revenge');
-                shooter.revengeTargetId = null;
-                this.events.push({ type: 'revenge', killer: shooter.name, victim: p.name, killerTeam: shooter.team });
-              }
-              this.events.push({ type: 'kill', killer: shooter.name, victim: p.name, killerTeam: shooter.team, killerClass: shooter.className });
-              p.lastKilledBy = { name: shooter.name, id: shooter.id, className: shooter.className };
-              p.revengeTargetId = shooter.id;
-            } else if (b.ownerId.startsWith('cell_')) {
-              this.teamKills[b.team]++;
-              const cellId = b.ownerId.replace('cell_', '');
-              this.events.push({ type: 'cell_kill', cellId, victim: p.name, killerTeam: b.team });
-              p.lastKilledBy = { name: 'Cell Turret', className: 'cell' };
-              p.revengeTargetId = null;
-            } else {
-              p.lastKilledBy = null;
-              p.revengeTargetId = null;
-            }
-            // 어시스트 XP (킬러 또는 같은 팀 기여자에게)
-            this._processAssists(p, shooter ? shooter.id : null, b.team);
+          // 셀 터렛 킬 시 추가 이벤트 (셀 킬은 _applyDamageToPlayer가 처리 안 함)
+          if (!entity.alive && !shooter && b.ownerId.startsWith('cell_')) {
+            this.teamKills[b.team]++;
+            const cellId = b.ownerId.replace('cell_', '');
+            this.events.push({ type: 'cell_kill', cellId, victim: entity.name, killerTeam: b.team });
           }
           break;
         }
-      }
-      if (!b.alive) continue;
 
-      // vs 적 미니언
-      for (const m of this.minions) {
-        if (!m.alive || m.team === b.team) continue;
-        if (this._circleCollide(b, m)) {
-          m.hp -= b.damage; b.alive = false;
-          if (m.hp <= 0) {
-            m.alive = false;
+        if (eType === 'minion') {
+          if (entity.team === b.team) continue;
+          if (!this._circleCollide(b, entity)) continue;
+          entity.hp -= b.damage; b.alive = false;
+          if (entity.hp <= 0) {
+            entity.alive = false;
             const shooter = this.players.get(b.ownerId);
             if (shooter) this._grantXp(shooter, 'minionKill');
           }
           break;
         }
-      }
-      if (!b.alive) continue;
 
-      // vs 몬스터
-      for (const mon of this.monsters) {
-        if (!mon.alive) continue;
-        if (this._circleCollide(b, mon)) {
-          mon.hp -= b.damage;
-          mon.lastHitTeam = b.team;
-          // 보스 데미지 기여 추적
+        if (eType === 'monster') {
+          if (!this._circleCollide(b, entity)) continue;
+          entity.hp -= b.damage;
+          entity.lastHitTeam = b.team;
           const bShooter = this.players.get(b.ownerId);
-          if (bShooter) this._trackDamage(mon, bShooter.id, b.damage);
+          if (bShooter) this._trackDamage(entity, bShooter.id, b.damage);
           b.alive = false;
-          if (mon.hp <= 0) {
-            mon.alive = false;
-            this._onMonsterKill(mon, mon.lastHitTeam, bShooter ? bShooter.id : null);
+          if (entity.hp <= 0) {
+            entity.alive = false;
+            this._onMonsterKill(entity, entity.lastHitTeam, bShooter ? bShooter.id : null);
+          }
+          break;
+        }
+
+        if (eType === 'neutralMob') {
+          if (!this._circleCollide(b, entity)) continue;
+          entity.hp -= b.damage;
+          b.alive = false;
+          if (entity.behavior === 'passive' && !entity.fleeing) {
+            entity.fleeing = true;
+            entity.fleeTimer = entity.config.fleeDuration || 2000;
+            const angle = Math.atan2(entity.y - b.y, entity.x - b.x);
+            entity.fleeDx = Math.cos(angle);
+            entity.fleeDy = Math.sin(angle);
+          }
+          if (entity.hp <= 0) {
+            entity.alive = false;
+            const shooter = this.players.get(b.ownerId);
+            if (shooter) {
+              shooter.score += entity.xpReward;
+              shooter.grantXp(entity.xpReward);
+              this.events.push({ type: 'neutral_kill', mobName: entity.name, playerId: shooter.id });
+            }
+            this._neutralRespawnQueue.push({ type: entity.type, timer: entity.config.respawnDelay });
           }
           break;
         }
       }
       if (!b.alive) continue;
 
-      // vs 보스 드론
+      // vs 보스 드론 (not in spatial hash — few entities)
       for (const drone of this.bossDrones) {
         if (!drone.alive) continue;
         if (this._circleCollide(b, drone)) {
@@ -1414,52 +1373,20 @@ class Game {
       }
       if (!b.alive) continue;
 
-      // vs 중립 몹
-      for (const nm of this.neutralMobs) {
-        if (!nm.alive) continue;
-        if (this._circleCollide(b, nm)) {
-          nm.hp -= b.damage;
-          b.alive = false;
-          // 피격 시 도주 반응 (passive 타입)
-          if (nm.behavior === 'passive' && !nm.fleeing) {
-            nm.fleeing = true;
-            nm.fleeTimer = nm.config.fleeDuration || 2000;
-            const angle = Math.atan2(nm.y - b.y, nm.x - b.x);
-            nm.fleeDx = Math.cos(angle);
-            nm.fleeDy = Math.sin(angle);
-          }
-          if (nm.hp <= 0) {
-            nm.alive = false;
-            const shooter = this.players.get(b.ownerId);
-            if (shooter) {
-              shooter.score += nm.xpReward;
-              shooter.grantXp(nm.xpReward);
-              this.events.push({ type: 'neutral_kill', mobName: nm.name, playerId: shooter.id });
-            }
-            // 리스폰 큐에 추가
-            this._neutralRespawnQueue.push({ type: nm.type, timer: nm.config.respawnDelay });
-          }
-          break;
-        }
-      }
-      if (!b.alive) continue;
-
-      // vs 셀 터렛 (적 또는 중립 셀에만 데미지)
+      // vs 셀 터렛 (not in spatial hash — fixed positions, few)
       for (const cell of this.cells) {
         if (cell.state === 'destroyed' || cell.state === 'rebuilding') continue;
-        if (cell.ownerTeam === b.team) continue; // 아군 셀 무시
-        if (cell.shieldTimer > 0) continue;      // 무적 상태
+        if (cell.ownerTeam === b.team) continue;
+        if (cell.shieldTimer > 0) continue;
         const dx = b.x - cell.x;
         const dy = b.y - cell.y;
         if (dx * dx + dy * dy <= (b.radius + cell.radius) * (b.radius + cell.radius)) {
           let dmg = b.damage;
-          // 셀 추가 데미지 (캐패시터 보너스)
           const shooterP = this.players.get(b.ownerId);
           if (shooterP) {
             const cellBonus = shooterP.getClassConfig().cellDmgBonus || 0;
             dmg *= (1 + cellBonus);
           }
-          // 백도어 보호: 아군 미니언이 근처에 없으면 피해 감소
           if (cell.ownerTeam !== 'neutral') {
             const hasAllyMinion = this.minions.some(m =>
               m.alive && m.team === b.team &&
@@ -2172,8 +2099,15 @@ class Game {
     return Math.sqrt(dx * dx + dy * dy);
   }
 
+  _distSq(a, b) {
+    const dx = a.x - b.x;
+    const dy = a.y - b.y;
+    return dx * dx + dy * dy;
+  }
+
   _circleCollide(a, b) {
-    return this._dist(a, b) <= a.radius + b.radius;
+    const r = a.radius + b.radius;
+    return this._distSq(a, b) <= r * r;
   }
 
   _isInOwnSpawnZone(player) {
@@ -2190,29 +2124,6 @@ class Game {
     }
     return {
       mapId: this.mapId,
-      mapConfig: {
-        id: this.mapConfig.id,
-        name: this.mapConfig.name,
-        world: this.mapConfig.world,
-        teamSpawns: this.mapConfig.teamSpawns,
-        lanes: this.mapConfig.lanes || null,
-        portals: this.mapConfig.portals || [],
-        portalRadius: this.mapConfig.portalRadius || 0,
-        obstacles: this.mapConfig.obstacles || [],
-        boss: this.mapConfig.boss || null,
-        arena: this.mapConfig.arena || null,
-        connectors: this.mapConfig.connectors || null,
-        zones: this.mapConfig.zones || null,
-        cellNodes: this.mapConfig.cellNodes || null,
-        cellBalance: {
-          attackRange: C.CELL_ATTACK_RANGE,
-          captureRadius: C.CELL_CAPTURE_RADIUS,
-          captureTime: C.CELL_CAPTURE_TIME,
-          rebuildTime: C.CELL_REBUILD_TIME,
-        },
-        spawnZoneRadius: C.SPAWN_ZONE_RADIUS,
-        decorations: this.mapConfig.decorations || null,
-      },
       players,
       bullets: this.bullets.map(b => b.serialize()),
       minions: this.minions.map(m => m.serialize()),
@@ -2289,6 +2200,33 @@ class Game {
       nextBuffLabel: nextType.label,
       nextColor: nextType.color,
       nextAttackStyle: nextType.attackStyle,
+    };
+  }
+
+  // ── 맵 설정 스냅샷 (접속 시 1회 전송) ──
+  getMapConfigSnapshot() {
+    return {
+      id: this.mapConfig.id,
+      name: this.mapConfig.name,
+      world: this.mapConfig.world,
+      teamSpawns: this.mapConfig.teamSpawns,
+      lanes: this.mapConfig.lanes || null,
+      portals: this.mapConfig.portals || [],
+      portalRadius: this.mapConfig.portalRadius || 0,
+      obstacles: this.mapConfig.obstacles || [],
+      boss: this.mapConfig.boss || null,
+      arena: this.mapConfig.arena || null,
+      connectors: this.mapConfig.connectors || null,
+      zones: this.mapConfig.zones || null,
+      cellNodes: this.mapConfig.cellNodes || null,
+      cellBalance: {
+        attackRange: C.CELL_ATTACK_RANGE,
+        captureRadius: C.CELL_CAPTURE_RADIUS,
+        captureTime: C.CELL_CAPTURE_TIME,
+        rebuildTime: C.CELL_REBUILD_TIME,
+      },
+      spawnZoneRadius: C.SPAWN_ZONE_RADIUS,
+      decorations: this.mapConfig.decorations || null,
     };
   }
 

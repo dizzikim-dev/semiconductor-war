@@ -7,9 +7,12 @@ const Interpolation = (() => {
 
   const pushSnapshot = (snapshot) => {
     buffer.push({ timestamp: Date.now(), snapshot });
-    // 새 스냅샷의 이벤트를 큐에 수집
+    // 새 스냅샷의 이벤트를 큐에 수집 (최대 100개 캡)
     if (snapshot.events && snapshot.events.length > 0) {
       pendingEvents.push(...snapshot.events);
+      if (pendingEvents.length > 100) {
+        pendingEvents = pendingEvents.slice(-100);
+      }
     }
     // 버퍼 크기 제한
     while (buffer.length > BUFFER_SIZE + 2) {

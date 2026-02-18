@@ -1,37 +1,29 @@
 // Educational Tooltips — proximity-based semiconductor knowledge popups
 const Tooltips = (() => {
-  const TOOLTIP_DATA = {
-    // Map elements
-    portal_via: 'Via: connects metal layers in a chip, just like this portal connects lanes',
-    boss_chamber: 'Clock Root Buffer: distributes timing signals across the entire chip',
-    power_rail_VDD: 'VDD: positive supply voltage rail powering all logic gates',
-    power_rail_VSS: 'VSS: ground rail completing the circuit for all cells',
-    connector_boost: 'Scribe Line: test channels between die sites on a wafer',
-    obstacle_CELL: 'Standard Cell: pre-designed logic block \u2014 the LEGO brick of chip design',
-    obstacle_TAP: 'Substrate Tap: connects transistor substrate to power/ground',
-    obstacle_VIA: 'Via Stack: vertical metal connections between routing layers',
-    obstacle_BUF: 'Buffer: amplifies weak signals to drive long wires',
-    obstacle_DIE: 'Die: individual chip cut from a silicon wafer',
-    obstacle_PCM: 'PCM: Process Control Monitor for testing manufacturing quality',
-    // Neutral mobs
-    mob_photon: 'Photon: EUV light particles etch circuit patterns at 13.5nm wavelength',
-    mob_dopant: 'Dopant: atoms implanted into silicon to control conductivity',
-    mob_alpha: 'Alpha Particle: cosmic rays that can flip bits in memory chips',
-    // Pickups
-    pickup_WAFER: 'Wafer: 300mm silicon disc \u2014 foundation of every chip',
-    pickup_EUV: 'EUV Lithography: $150M machines that print circuits with extreme UV light',
-    pickup_TSV_BOOSTER: 'TSV: Through-Silicon Via \u2014 vertical connections in 3D stacked chips',
-    pickup_PHOTORESIST: 'Photoresist: light-sensitive coating that defines circuit patterns',
-    pickup_CMP_PAD: 'CMP: Chemical-Mechanical Polishing \u2014 planarizes wafer surfaces',
-    // Cell turrets
-    cell_turret: 'Cell Turret: capture these to control territory \u2014 like dominating fab capacity',
-    // Boss
-    boss_NVIDIA: 'NVIDIA: GPU giant whose AI chips consume vast quantities of HBM memory',
-    boss_Apple: 'Apple: designs custom ARM chips (M-series) pushing fab process limits',
-    boss_TSMC: 'TSMC: world\'s largest foundry, manufactures chips for Apple/NVIDIA/AMD',
-    boss_Google: 'Google: develops TPU AI accelerators requiring advanced packaging',
-    boss_META: 'META: building custom AI inference chips for social media workloads',
+  // i18n 키 목록 — 실제 텍스트는 locales/ko.json, en.json의 "tooltip" 섹션
+  const TOOLTIP_KEYS = [
+    'portal_via', 'boss_chamber', 'power_rail_VDD', 'power_rail_VSS',
+    'connector_boost',
+    'obstacle_CELL', 'obstacle_TAP', 'obstacle_VIA', 'obstacle_BUF',
+    'obstacle_DIE', 'obstacle_PCM',
+    'mob_photon', 'mob_dopant', 'mob_alpha',
+    'pickup_WAFER', 'pickup_EUV', 'pickup_TSV_BOOSTER',
+    'pickup_PHOTORESIST', 'pickup_CMP_PAD',
+    'cell_turret',
+    'boss_NVIDIA', 'boss_Apple', 'boss_TSMC', 'boss_Google', 'boss_META',
+  ];
+
+  /** i18n을 통해 현재 로케일의 툴팁 텍스트를 가져온다 */
+  const _getText = (id) => {
+    if (typeof I18n !== 'undefined') {
+      const val = I18n.t(`tooltip.${id}`);
+      if (val !== `tooltip.${id}`) return val;
+    }
+    return null; // 번역 없으면 표시 안 함
   };
+
+  /** 해당 id가 유효한 툴팁인지 */
+  const _hasTooltip = (id) => TOOLTIP_KEYS.includes(id);
 
   const PROXIMITY = 150;           // px — show tooltip when within this range
   const COOLDOWN = 20000;          // ms — per-tooltip cooldown (20초)
@@ -82,7 +74,7 @@ const Tooltips = (() => {
         const d = _dist(me, cx, cy);
         if (d < bestDist) {
           const id = `obstacle_${obs.label}`;
-          if (TOOLTIP_DATA[id] && !_onCooldown(id, now)) {
+          if (_hasTooltip(id) && !_onCooldown(id, now)) {
             bestDist = d; best = { id, x: cx, y: cy - 30 };
           }
         }
@@ -122,7 +114,7 @@ const Tooltips = (() => {
       for (const nm of state.neutralMobs) {
         const d = _dist(me, nm.x, nm.y);
         const id = `mob_${nm.type}`;
-        if (d < bestDist && TOOLTIP_DATA[id] && !_onCooldown(id, now)) {
+        if (d < bestDist && _hasTooltip(id) && !_onCooldown(id, now)) {
           bestDist = d; best = { id, x: nm.x, y: nm.y - nm.radius - 20 };
         }
       }
@@ -133,7 +125,7 @@ const Tooltips = (() => {
       for (const pk of state.pickups) {
         const d = _dist(me, pk.x, pk.y);
         const id = `pickup_${pk.type}`;
-        if (d < bestDist && TOOLTIP_DATA[id] && !_onCooldown(id, now)) {
+        if (d < bestDist && _hasTooltip(id) && !_onCooldown(id, now)) {
           bestDist = d; best = { id, x: pk.x, y: pk.y - 24 };
         }
       }
@@ -155,17 +147,19 @@ const Tooltips = (() => {
         if (!mon.alive) continue;
         const d = _dist(me, mon.x, mon.y);
         const id = `boss_${mon.typeName}`;
-        if (d < bestDist && TOOLTIP_DATA[id] && !_onCooldown(id, now)) {
+        if (d < bestDist && _hasTooltip(id) && !_onCooldown(id, now)) {
           bestDist = d; best = { id, x: mon.x, y: mon.y - mon.radius - 24 };
         }
       }
     }
 
     if (best) {
+      const text = _getText(best.id);
+      if (!text) return; // 번역 없으면 표시 안 함
       cooldowns[best.id] = now;
       activeTooltip = {
         id: best.id,
-        text: TOOLTIP_DATA[best.id],
+        text,
         worldX: best.x,
         worldY: best.y,
         startTime: now,
@@ -180,19 +174,24 @@ const Tooltips = (() => {
     if (!activeTooltip) return;
     const tt = activeTooltip;
     const isMob = _isMob();
-    const zoom = isMob ? 0.65 : 1;
+    const zoom = isMob ? 0.8 : 1;
 
-    // World → screen coordinates (zoom 보정)
-    const sx = (tt.worldX - camera.x) * zoom + canvas.width / 2;
-    const sy = (tt.worldY - camera.y) * zoom + canvas.height / 2;
+    // DPR 보정: canvas.width는 devicePixel 크기, 그리기 좌표는 CSS 픽셀
+    const dpr = window.devicePixelRatio || 1;
+    const vw = canvas.width / dpr;
+    const vh = canvas.height / dpr;
 
-    // Off-screen check
-    if (sx < -100 || sx > canvas.width + 100 || sy < -50 || sy > canvas.height + 50) return;
+    // World → screen coordinates (zoom + DPR 보정)
+    const sx = (tt.worldX - camera.x) * zoom + vw / 2;
+    const sy = (tt.worldY - camera.y) * zoom + vh / 2;
+
+    // Off-screen check (CSS 픽셀 기준)
+    if (sx < -100 || sx > vw + 100 || sy < -50 || sy > vh + 50) return;
 
     ctx.save();
 
     const fontSize = isMob ? 8 : 9;
-    const maxW = isMob ? canvas.width * 0.65 : canvas.width * 0.8;
+    const maxW = isMob ? vw * 0.65 : vw * 0.8;
     ctx.font = `${fontSize}px Share Tech Mono`;
 
     // 텍스트가 maxW를 초과하면 잘라내기
@@ -215,7 +214,7 @@ const Tooltips = (() => {
 
     // 화면 밖으로 나가지 않도록 클램핑
     if (boxX < 4) boxX = 4;
-    if (boxX + boxW > canvas.width - 4) boxX = canvas.width - 4 - boxW;
+    if (boxX + boxW > vw - 4) boxX = vw - 4 - boxW;
 
     // Background
     ctx.globalAlpha = tt.alpha * 0.75;

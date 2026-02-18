@@ -108,8 +108,8 @@ const CLASSES = {
     cellDmgBonus: 0.30,
     // Magnetic pull: enemies in range are pulled toward player
     magneticPull: true,
-    magneticRange: 180,     // pull range
-    magneticForce: 32,      // 40→32 너프 (-20%) — 도주 가능성 증가
+    magneticRange: 150,     // 180→150 너프 — 인력 범위 축소
+    magneticForce: 24,      // 32→24 너프 (-25%) — 도주 가능성 대폭 증가
     shieldMax: 60,
     shieldRechargeDelay: 6000,
     shieldRechargeRate: 15,
@@ -137,7 +137,7 @@ const CLASSES = {
     aura: true,
     auraRange: 200,
     auraDmgBoost: 0.15,    // +15% damage to nearby allies
-    auraRegen: 2.5,         // 2→2.5 버프 (+25%) — 자가힐 포함 생존력 향상
+    auraRegen: 1.5,         // 2.5→1.5 너프 (-40%) — 자가힐 과강 조정
     shieldMax: 100,
     shieldRechargeDelay: 4000,
     shieldRechargeRate: 25,
@@ -150,23 +150,23 @@ const CLASSES = {
     speed: 240,
     attackRange: 280,       // REPEATER와 동일
     attackDamage: 7,        // REPEATER와 동일 (기본기 유지)
-    attackCooldown: 160,    // REPEATER(150)보다 약간 느림 (확산 밸런스)
+    attackCooldown: 200,    // 160→200 너프 — 확산탄 DPS 하향
     bulletSpeed: 700,       // REPEATER와 동일
     bulletRadius: 3,
     bulletLifetime: 1500,
     attackType: 'single',   // REPEATER와 동일 (기본기 유지)
     // Tier 3 추가 요소: 확산탄 (스트라이커즈 1945 패턴)
     multiShot: 3,           // 매 발 3발 동시 발사 (메인 + 좌우 확산)
-    spreadAngle: 0.15,      // 확산 각도 (rad, ±8.6°)
+    spreadAngle: 0.25,      // 0.15→0.25 확산 각도 증가 (rad, ±14.3°) — 밀집 명중률 감소
     cellDmgBonus: 0.10,
     evolvesFrom: 'repeater',
     description: '파동 간섭 — 확산 딜러 (REPEATER 연사 + 3방향 확산탄)',
   },
   amplifier: {
     name: 'AMPLIFIER',
-    hp: 100,
+    hp: 130,                // 100→130 버프 — 스나이퍼 생존력 향상
     speed: 200,
-    attackRange: 350,       // REPEATER(280)보다 긴 사거리
+    attackRange: 400,       // 350→400 버프 — 스나이퍼 사거리 강화
     attackDamage: 7,        // REPEATER와 동일 (기본기 유지)
     attackCooldown: 200,    // REPEATER(150)보다 약간 느림
     bulletSpeed: 800,
@@ -257,11 +257,11 @@ const MONSTER_TYPES = [
     attackStyle: 'spray',  attackDamage: 12, attackCooldown: 1800, bulletCount: 3, spreadAngle: 0.4, hp: 500 },
   { name: 'Apple',   buff: 'spd',   value: 0.25, color: '#a2aaad', label: 'SPD +25%',
     attackStyle: 'sniper', attackDamage: 30, attackCooldown: 2500, bulletSpeed: 500, hp: 400 },
-  { name: 'TSMC',    buff: 'dmg',   value: 0.30, color: '#c4001a', label: 'DMG +30%',
+  { name: 'TSMC',    buff: 'dmg',   value: 0.30, color: '#ff8c42', label: 'DMG +30%',
     attackStyle: 'drone',  attackDamage: 0,  attackCooldown: 3000, droneCount: 2, maxDrones: 4, hp: 600 },
-  { name: 'Google',  buff: 'regen', value: 2,    color: '#4285f4', label: 'HP REGEN',
+  { name: 'Google',  buff: 'regen', value: 2,    color: '#9d4edd', label: 'HP REGEN',
     attackStyle: 'pulse',  attackDamage: 20, attackCooldown: 3500, pulseRadius: BOSS_PULSE_RADIUS, hp: 550 },
-  { name: 'META',    buff: 'armor', value: 0.20, color: '#0668e1', label: 'ARMOR +20%',
+  { name: 'META',    buff: 'armor', value: 0.20, color: '#06d6d0', label: 'ARMOR +20%',
     attackStyle: 'twin',   attackDamage: 10, attackCooldown: 1200, hp: 450 },
 ];
 
@@ -293,7 +293,7 @@ const NEUTRAL_MOB_TYPES = {
     maxCount: 20, respawnDelay: 25000,
   },
   alpha: {
-    name: 'Alpha Particle', shape: 'pentagon', color: '#e74c3c',
+    name: 'Alpha Particle', shape: 'pentagon', color: '#ffb703',
     hp: 120, xpReward: 35, radius: 14,
     behavior: 'defensive', attackDamage: 15, attackRange: 150, attackCooldown: 1500,
     maxCount: 6, respawnDelay: 45000,

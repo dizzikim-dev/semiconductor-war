@@ -146,6 +146,15 @@ body {
   letter-spacing: 2px;
 }
 .play-btn:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(30,100,255,0.4); }
+.start-disclaimer {
+  margin-top: 10px;
+  padding: 6px 12px;
+  font-size: 0.65rem;
+  color: #6b7a8d;
+  line-height: 1.4;
+  text-align: center;
+  border-top: 1px solid rgba(107,122,141,0.2);
+}
 .controls-hint {
   margin-top: 16px;
   font-size: 0.75rem;
@@ -218,8 +227,8 @@ body {
   border: 1px solid rgba(74, 122, 173, 0.5);
   border-radius: 16px;
   padding: 36px 44px;
-  max-width: 480px;
-  width: 90%;
+  max-width: 520px;
+  width: 92%;
   text-align: center;
   box-shadow: 0 0 60px rgba(30, 100, 255, 0.15), inset 0 0 30px rgba(30, 100, 255, 0.05);
   animation: guideSlideUp 0.4s ease-out;
@@ -274,6 +283,63 @@ body {
   margin: 0;
   color: #8899aa;
   font-size: 12px;
+}
+
+.guide-cell-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 6px;
+  padding: 6px 8px;
+  background: rgba(10, 20, 40, 0.5);
+  border-radius: 4px;
+  border-left: 2px solid #ffd700;
+}
+.guide-step {
+  font-size: 11px;
+  color: #a0b4c8;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(255, 215, 0, 0.15);
+  color: #ffd700;
+  font-size: 10px;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.guide-cell-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.guide-cell-row .guide-cell-steps {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+}
+.guide-cell-canvas {
+  flex: 1 0 80px;
+  max-width: 150px;
+  height: 72px;
+  border-radius: 4px;
+  background: rgba(10, 20, 40, 0.5);
+  border: 1px solid rgba(74, 122, 173, 0.2);
+}
+@media (max-width: 540px) {
+  .guide-cell-canvas { flex: 0 0 64px; height: 46px; }
+}
+@media (max-width: 400px) {
+  .guide-cell-canvas { display: none; }
 }
 
 .guide-start-btn {
@@ -366,6 +432,69 @@ body {
   text-align: center;
 }
 
+/* ── Navigation Objective Panel (피드백 #3) ── */
+.hud-objective {
+  position: absolute; top: 58px; right: 20px;
+  background: rgba(10,14,23,0.88);
+  border: 1px solid #2a3a4e;
+  border-left: 3px solid #ffd700;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 11px;
+  min-width: 180px;
+  max-width: 240px;
+  pointer-events: none;
+}
+.obj-phase {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 9px;
+  color: #ffd700;
+  letter-spacing: 2px;
+  margin-bottom: 3px;
+}
+.obj-text {
+  color: #e0e6ed;
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+.obj-hint {
+  color: #6b7a8d;
+  font-size: 9px;
+}
+
+/* ── Language Switcher ── */
+#startScreen > .lang-switcher {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  display: flex;
+  gap: 4px;
+  z-index: 10;
+}
+.lang-flag-btn {
+  background: rgba(20,28,40,0.6);
+  border: 2px solid transparent;
+  border-radius: 6px;
+  font-size: 20px;
+  padding: 4px 6px;
+  cursor: pointer;
+  line-height: 1;
+  transition: all 0.2s;
+  opacity: 0.45;
+}
+.lang-flag-btn.active {
+  border-color: #ffd700;
+  opacity: 1;
+  box-shadow: 0 0 6px rgba(255,215,0,0.4);
+}
+.lang-flag-btn:hover {
+  opacity: 0.85;
+}
+@media (max-width: 768px) {
+  .lang-switcher { top: 10px; left: 10px; }
+  .lang-flag-btn { font-size: 17px; padding: 3px 5px; }
+}
+
 #hudKillFeed {
   position: absolute; top: 280px; left: 20px;
   display: flex; flex-direction: column; gap: 4px;
@@ -448,20 +577,15 @@ body {
   #deathKiller {
     font-size: 13px !important;
   }
-  #spectateInfo {
-    font-size: 11px !important;
-    word-break: keep-all;
-    overflow-wrap: break-word;
-  }
   #deathScreen .play-btn {
     width: 100%;
     padding: 14px;
     font-size: 1rem;
   }
-  #deathScreen .home-btn {
+  #deathScreen .home-btn-small {
     width: 100%;
-    padding: 10px;
-    font-size: 0.75rem;
+    padding: 8px;
+    font-size: 0.65rem;
   }
 }
 .death-container h2 {
@@ -487,6 +611,70 @@ body {
   letter-spacing: 1px;
 }
 .home-btn:hover { border-color: #e0e6ed; color: #e0e6ed; }
+
+/* 리스폰 버튼 비활성 상태 (피드백 #9) */
+.respawn-disabled {
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
+  border-color: #4a5568 !important;
+  color: #6b7a8d !important;
+  background: rgba(30,30,40,0.6) !important;
+}
+.respawn-disabled:hover {
+  border-color: #4a5568 !important;
+  color: #6b7a8d !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+/* HOME 버튼 축소 (사망 화면 하단) */
+.home-btn-small {
+  display: inline-block;
+  padding: 6px 20px;
+  margin-top: 16px;
+  background: transparent;
+  border: 1px solid #2a3040;
+  border-radius: 4px;
+  color: #5a6070;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.65rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 1px;
+}
+.home-btn-small:hover { border-color: #8a95a5; color: #8a95a5; }
+
+/* 일일 최고기록 패널 (사망 화면 내) */
+.daily-records-panel {
+  margin-top: 16px;
+  padding: 10px;
+  background: rgba(20, 30, 50, 0.5);
+  border: 1px solid #1a2a40;
+  border-radius: 6px;
+  font-size: 11px;
+  text-align: left;
+}
+.daily-records-header {
+  text-align: center;
+  color: #ffd700;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: bold;
+  font-size: 10px;
+  margin-bottom: 6px;
+  letter-spacing: 1px;
+}
+.daily-records-list { display: flex; flex-direction: column; gap: 2px; }
+.daily-record-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 3px 6px;
+  background: rgba(10, 10, 20, 0.4);
+  border-radius: 3px;
+  color: #6b7a8d;
+  font-family: 'Share Tech Mono', monospace;
+}
+.daily-record-row.rank-1 { background: rgba(255, 215, 0, 0.08); color: #ffd700; font-weight: bold; }
+.daily-record-row.rank-2 { background: rgba(200, 200, 200, 0.06); color: #c8c8c8; }
+.daily-record-row.rank-3 { background: rgba(205, 127, 50, 0.06); color: #cd7f32; }
 
 /* ─── 라운드 종료 ─── */
 #roundEndScreen {

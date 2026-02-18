@@ -21,8 +21,13 @@ const Mobile = (() => {
 
   // ── 디바이스 감지 ──
   const detectMobile = () => {
-    return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-      || ('ontouchstart' in window && window.innerWidth < 1024);
+    const ua = navigator.userAgent;
+    // UA 기반: 일반 모바일 + 인앱 브라우저 (카카오톡, 네이버 등)
+    const uaMobile = /Android|iPhone|iPad|iPod|Mobile|KAKAOTALK|NAVER|Line|Instagram|FB/i.test(ua);
+    // 터치 + 좁은 화면
+    const touchSmall = ('ontouchstart' in window || navigator.maxTouchPoints > 0)
+      && window.innerWidth < 1024;
+    return uaMobile || touchSmall;
   };
 
   const isMobile = () => _isMobile;
@@ -218,7 +223,8 @@ const Mobile = (() => {
 
     _currentModal = type;
 
-    const titles = { stock: 'STOCK', chat: 'CHAT', news: 'NEWS' };
+    const _t = typeof I18n !== 'undefined' ? I18n.t.bind(I18n) : (k) => k;
+    const titles = { stock: _t('mobile.stock'), chat: _t('mobile.chat'), news: _t('mobile.news') };
     title.textContent = titles[type] || type.toUpperCase();
 
     // 콘텐츠 렌더링
@@ -246,7 +252,8 @@ const Mobile = (() => {
   const renderStockModal = (body) => {
     const md = _lastSnapshot && _lastSnapshot.marketData;
     if (!md) {
-      body.innerHTML = '<div style="text-align:center;color:#6b7a8d;padding:30px">주가 데이터 로딩 중...</div>';
+      const _t = typeof I18n !== 'undefined' ? I18n.t.bind(I18n) : (k) => k;
+      body.innerHTML = `<div style="text-align:center;color:#6b7a8d;padding:30px">${_t('mobile.stockLoading')}</div>`;
       return;
     }
     const badge = md.isMarketOpen
@@ -283,7 +290,8 @@ const Mobile = (() => {
   const renderChatModal = (body) => {
     // 기존 hub 메시지를 복사
     const hubMsgs = document.getElementById('hubMessages');
-    const msgHtml = hubMsgs ? hubMsgs.innerHTML : '<div style="color:#4a5568;text-align:center;padding:20px">메시지 없음</div>';
+    const _t2 = typeof I18n !== 'undefined' ? I18n.t.bind(I18n) : (k) => k;
+    const msgHtml = hubMsgs ? hubMsgs.innerHTML : `<div style="color:#4a5568;text-align:center;padding:20px">${_t2('chat.noMessages')}</div>`;
 
     body.innerHTML = `
       <div class="mobile-chat-messages" id="mobileChatMessages">${msgHtml}</div>
@@ -320,7 +328,8 @@ const Mobile = (() => {
   // ── News Modal ──
   const renderNewsModal = (body) => {
     const newsBody = document.getElementById('newsBody');
-    const newsHtml = newsBody ? newsBody.innerHTML : '<div style="color:#4a5568;text-align:center;padding:20px">뉴스 없음</div>';
+    const _t3 = typeof I18n !== 'undefined' ? I18n.t.bind(I18n) : (k) => k;
+    const newsHtml = newsBody ? newsBody.innerHTML : `<div style="color:#4a5568;text-align:center;padding:20px">${_t3('mobile.noNews')}</div>`;
     body.innerHTML = newsHtml;
   };
 

@@ -9,6 +9,7 @@ const { createMarketDataService } = require('./market');
 const createAdminRouter = require('./admin/routes');
 const ChatService = require('./chat');
 const UserDataStore = require('./userData');
+const DailyRecords = require('./dailyRecords');
 
 const app = express();
 const server = http.createServer(app);
@@ -17,6 +18,11 @@ const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',')
   : '*'; // 로컬 개발 시 전체 허용, 프로덕션에서는 환경변수로 제한
 const MAX_CONNECTIONS = parseInt(process.env.MAX_CONNECTIONS, 10) || 50;
+
+// CORS 와일드카드 경고 (프로덕션 환경에서 제한 권장)
+if (ALLOWED_ORIGINS === '*') {
+  console.warn('[SECURITY] CORS origin is set to "*". Set ALLOWED_ORIGINS env var for production.');
+}
 
 const io = new Server(server, {
   cors: { origin: ALLOWED_ORIGINS },
@@ -41,6 +47,15 @@ let lastPlayerChatTime = Date.now();  // 봇 도발 채팅용: 마지막 플레�
 
 // ── 유저 데이터 서비스 ──
 const userDataStore = new UserDataStore();
+
+// ── 일일 최고기록 ──
+const dailyRecords = new DailyRecords();
+
+// 면책 헤더 — 모든 응답에 게임 목적 면책 포함
+app.use((req, res, next) => {
+  res.set('X-Disclaimer', 'This is a fan-made game for entertainment purposes only. Not affiliated with Samsung or SK Hynix.');
+  next();
+});
 
 // 정적 파일 서빙
 app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -172,6 +187,9 @@ io.on('connection', (socket) => {
     const player = g.addPlayer(socket.id, name.slice(0, 16), finalTeam);
     socket.emit('player_joined', { id: player.id, team: player.team, mapId: acceptedMapId });
 
+    // 맵 설정 1회 전송 (스냅샷에서 제거하여 대역폭 절감)
+    socket.emit('map_config', g.getMapConfigSnapshot());
+
     // UUID 기반 유저 데이터 추적
     const playerUuid = (typeof uuid === 'string' && uuid.length > 0) ? uuid : `server_${socket.id}`;
     userDataStore.onPlayerJoin(socket.id, playerUuid, name.slice(0, 16), finalTeam, acceptedMapId);
@@ -221,8 +239,21 @@ io.on('connection', (socket) => {
     if (!game) return;
     const player = game.players.get(socket.id);
     if (player && !player.alive && player.respawnTimer <= 0) {
+      // 리스폰 전 일일 기록 제출
+      dailyRecords.submit(player.name, player.team, player.score || 0, player.kills || 0, player.className || 'resistor');
       player.respawn();
     }
+  });
+
+  socket.on('get_daily_records', () => {
+    // 현재 플레이어 기록을 먼저 제출 후 반환 (사망 시 아직 제출 안 된 경우 대비)
+    if (game) {
+      const player = game.players.get(socket.id);
+      if (player && !player.isBot) {
+        dailyRecords.submit(player.name, player.team, player.score || 0, player.kills || 0, player.className || 'resistor');
+      }
+    }
+    socket.emit('daily_records', dailyRecords.getTop10());
   });
 
   // 맵 변경 요청 (모든 플레이어가 퇴장 후 새 맵으로)
@@ -271,6 +302,10 @@ io.on('connection', (socket) => {
         level: player.level || 1,
         className: player.className || 'resistor',
       } : {};
+      // 일일 기록 제출
+      if (player && !player.isBot) {
+        dailyRecords.submit(player.name, player.team, player.score || 0, player.kills || 0, player.className || 'resistor');
+      }
       userDataStore.onPlayerDisconnect(socket.id, stats);
 
       game.removePlayer(socket.id);
@@ -329,9 +364,6 @@ const BOT_TAUNTS = {
     '우리 보스 뺏어간다~',
   ],
 };
-
-// 플레이어 채팅 시간 추적 (chat:send 성공 시 업데이트)
-const _origChatHandler = null; // 기존 핸들러는 socket 이벤트에서 직접 처리
 
 setInterval(() => {
   if (!game || !io) return;
@@ -412,9 +444,12 @@ setInterval(() => {
   io.emit('game_snapshot', snapshot);
 }, C.SNAPSHOT_INTERVAL);
 
-// ── 프로세스 에러 핸들링 (서버 크래시 방지) ──
+// ── 프로세스 에러 핸들링 ──
 process.on('uncaughtException', (err) => {
   console.error('[FATAL] Uncaught exception:', err);
+  // 진행 중 연결 정리 → PM2 등 프로세스 매니저가 재시작
+  try { io.close(); } catch (_) { /* ignore */ }
+  process.exit(1);
 });
 process.on('unhandledRejection', (reason) => {
   console.error('[FATAL] Unhandled rejection:', reason);

@@ -55,12 +55,13 @@
     const s = playerStats;
     const hours = Math.floor(s.totalPlayTime / 3600);
     const mins = Math.floor((s.totalPlayTime % 3600) / 60);
+    const _t = typeof I18n !== 'undefined' ? I18n.t.bind(I18n) : (k) => k;
     el.innerHTML = `
-      <div class="stat-item"><span class="stat-value">${s.totalKills}</span><span class="stat-label">누적 킬</span></div>
-      <div class="stat-item"><span class="stat-value">${s.bestKillStreak}</span><span class="stat-label">최고 연속킬</span></div>
-      <div class="stat-item"><span class="stat-value">Lv.${s.highestLevel}</span><span class="stat-label">최고 레벨</span></div>
-      <div class="stat-item"><span class="stat-value">${hours}h ${mins}m</span><span class="stat-label">플레이</span></div>
-      <div class="stat-item"><span class="stat-value">${s.gamesPlayed}</span><span class="stat-label">게임</span></div>
+      <div class="stat-item"><span class="stat-value">${s.totalKills}</span><span class="stat-label">${_t('stats.totalKills')}</span></div>
+      <div class="stat-item"><span class="stat-value">${s.bestKillStreak}</span><span class="stat-label">${_t('stats.bestStreak')}</span></div>
+      <div class="stat-item"><span class="stat-value">Lv.${s.highestLevel}</span><span class="stat-label">${_t('stats.highestLevel')}</span></div>
+      <div class="stat-item"><span class="stat-value">${hours}h ${mins}m</span><span class="stat-label">${_t('stats.playTime')}</span></div>
+      <div class="stat-item"><span class="stat-value">${s.gamesPlayed}</span><span class="stat-label">${_t('stats.gamesPlayed')}</span></div>
     `;
   }
 
@@ -85,9 +86,138 @@
   let revengeTargetId = null;
   let revengeTargetName = null;
 
+  // ── i18n 초기화 ──
+  I18n.init().then(() => {
+    I18n.translateDOM();
+    renderStatsDisplay();
+    _updateLangFlags();
+  });
+
+  // 언어 전환 버튼 (국기 2개)
+  const langFlagBtns = document.querySelectorAll('.lang-flag-btn');
+  const _updateLangFlags = () => {
+    const cur = I18n.getLocale();
+    langFlagBtns.forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.lang === cur);
+    });
+  };
+  langFlagBtns.forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (btn.dataset.lang === I18n.getLocale()) return;
+      await I18n.setLocale(btn.dataset.lang);
+      I18n.translateDOM();
+      renderStatsDisplay();
+      _updateLangFlags();
+    });
+  });
+
+  // 언어 변경 시 DOM 갱신
+  I18n.onChange(() => {
+    I18n.translateDOM();
+    _updateLangFlags();
+  });
+
   // Render stats on page load
   renderStatsDisplay();
 
+
+  // ── 가이드 셀 점령 일러스트 ──
+  function _drawGuideCellIllust(team) {
+    const cvs = document.getElementById('guideCellCanvas');
+    if (!cvs) return;
+    // CSS가 결정한 크기를 읽어서 고해상도 캔버스 생성
+    const w = cvs.offsetWidth || 90;
+    const h = cvs.offsetHeight || 64;
+    const dpr = window.devicePixelRatio || 1;
+    cvs.width = w * dpr;
+    cvs.height = h * dpr;
+    const c = cvs.getContext('2d');
+    c.scale(dpr, dpr);
+
+    // 스케일 팩터 (기준: 64px 높이)
+    const s = h / 64;
+    const neutralColor = '#6b7a8d';
+    const teamColor = team === 'skhynix' ? '#ff3250' : '#1e64ff';
+    const midY = h * 0.42;
+
+    // 커패시터 심볼 그리기 헬퍼
+    function drawCap(cx, cy, color, glow) {
+      const r = 14 * s, plateH = r * 1.6, plateGap = r * 0.45, plateW = 2.5 * s;
+      c.save();
+      c.translate(cx, cy);
+      c.globalAlpha = 0.5;
+      c.strokeStyle = color;
+      c.lineWidth = 1.5 * s;
+      c.beginPath();
+      c.moveTo(-r, 0); c.lineTo(-plateGap / 2, 0);
+      c.moveTo(plateGap / 2, 0); c.lineTo(r, 0);
+      c.stroke();
+      c.globalAlpha = 0.8;
+      c.fillStyle = color;
+      c.fillRect(-plateGap / 2 - plateW, -plateH / 2, plateW, plateH);
+      c.fillRect(plateGap / 2, -plateH / 2, plateW, plateH);
+      c.globalAlpha = 0.9;
+      c.strokeStyle = '#ffffff';
+      c.lineWidth = s;
+      c.strokeRect(-plateGap / 2 - plateW, -plateH / 2, plateW, plateH);
+      c.strokeRect(plateGap / 2, -plateH / 2, plateW, plateH);
+      if (glow) {
+        const glowH = plateH * 0.6;
+        c.globalAlpha = 0.4;
+        c.fillStyle = color;
+        c.fillRect(-plateGap / 2 + 1, -glowH / 2, plateGap - 2, glowH);
+        c.globalAlpha = 0.15;
+        c.shadowColor = color;
+        c.shadowBlur = 8 * s;
+        c.beginPath();
+        c.arc(0, 0, r + 4 * s, 0, Math.PI * 2);
+        c.fillStyle = color;
+        c.fill();
+        c.shadowBlur = 0;
+      }
+      c.globalAlpha = 0.4;
+      c.font = `${8 * s}px Share Tech Mono`;
+      c.fillStyle = '#fff';
+      c.textAlign = 'center';
+      c.fillText('+', -plateGap / 2 - plateW - 6 * s, 3 * s);
+      c.fillText('−', plateGap / 2 + plateW + 6 * s, 3 * s);
+      c.restore();
+    }
+
+    const leftX = w * 0.25, rightX = w * 0.75;
+    // 좌: neutral
+    drawCap(leftX, midY, neutralColor, false);
+    c.globalAlpha = 0.6;
+    c.fillStyle = '#8899aa';
+    c.font = `${8 * s}px Share Tech Mono`;
+    c.textAlign = 'center';
+    c.fillText('neutral', leftX, midY + 26 * s);
+
+    // 화살표
+    const arrowL = w * 0.42, arrowR = w * 0.58;
+    c.globalAlpha = 0.7;
+    c.strokeStyle = '#ffd700';
+    c.lineWidth = 1.5 * s;
+    c.beginPath();
+    c.moveTo(arrowL, midY);
+    c.lineTo(arrowR, midY);
+    c.stroke();
+    c.fillStyle = '#ffd700';
+    c.beginPath();
+    c.moveTo(arrowR, midY);
+    c.lineTo(arrowR - 5 * s, midY - 4 * s);
+    c.lineTo(arrowR - 5 * s, midY + 4 * s);
+    c.closePath();
+    c.fill();
+
+    // 우: owned (팀색)
+    drawCap(rightX, midY, teamColor, true);
+    c.globalAlpha = 0.8;
+    c.fillStyle = teamColor;
+    c.font = `${8 * s}px Share Tech Mono`;
+    c.textAlign = 'center';
+    c.fillText('owned', rightX, midY + 26 * s);
+  }
 
   const socket = io();
   let myId = null;
@@ -97,14 +227,18 @@
   let alive = true;
   let lastState = null;
   let evolveReady = false;
-  let spectateTarget = null;  // player ID being spectated
-  let spectateIndex = 0;      // index in alive teammates list
+  let cachedMapConfig = null; // 서버에서 1회 수신 → 스냅샷에 머지
+  // (spectate 기능 제거됨 — 피드백 #9)
+
+  // 소켓 연결 시 홈 화면용 일일 랭킹 요청
+  socket.on('connect', () => {
+    socket.emit('get_daily_records');
+  });
 
   // DOM
   const startScreen = document.getElementById('startScreen');
   const deathScreen = document.getElementById('deathScreen');
   const deathInfo = document.getElementById('deathInfo');
-  const deathTimer = document.getElementById('deathTimer');
   const respawnBtn = document.getElementById('respawnBtn');
   const homeBtn = document.getElementById('homeBtn');
   const roundEndScreen = document.getElementById('roundEndScreen');
@@ -116,12 +250,6 @@
   const playBtn = document.getElementById('playBtn');
   const teamBtns = document.querySelectorAll('.team-btn');
   const evolveOverlay = document.getElementById('evolveOverlay');
-  const evolveCapacitor = document.getElementById('evolveCapacitor');
-  const evolveRepeater = document.getElementById('evolveRepeater');
-  const evolveInductor = document.getElementById('evolveInductor');
-  const evolveTransformer = document.getElementById('evolveTransformer');
-  const evolveOscillator = document.getElementById('evolveOscillator');
-  const evolveAmplifier = document.getElementById('evolveAmplifier');
   let selectedTeam = 'samsung';
   const selectedMapId = 'map_tribus_circuit';
   let myClass = 'resistor';
@@ -138,19 +266,19 @@
       tier2Btns.forEach(btn => btn.classList.remove('hidden'));
       tier3CapBtns.forEach(btn => btn.classList.add('hidden'));
       tier3RepBtns.forEach(btn => btn.classList.add('hidden'));
-      if (subtitle) subtitle.textContent = '클래스를 선택하세요';
+      if (subtitle) subtitle.textContent = I18n.t('evolve.selectClass');
     } else if (className === 'capacitor' && level >= 5) {
       // Tier 3 진화: capacitor → inductor/transformer
       tier2Btns.forEach(btn => btn.classList.add('hidden'));
       tier3CapBtns.forEach(btn => btn.classList.remove('hidden'));
       tier3RepBtns.forEach(btn => btn.classList.add('hidden'));
-      if (subtitle) subtitle.textContent = '2차 진화를 선택하세요';
+      if (subtitle) subtitle.textContent = I18n.t('evolve.selectTier3');
     } else if (className === 'repeater' && level >= 5) {
       // Tier 3 진화: repeater → oscillator/amplifier
       tier2Btns.forEach(btn => btn.classList.add('hidden'));
       tier3CapBtns.forEach(btn => btn.classList.add('hidden'));
       tier3RepBtns.forEach(btn => btn.classList.remove('hidden'));
-      if (subtitle) subtitle.textContent = '2차 진화를 선택하세요';
+      if (subtitle) subtitle.textContent = I18n.t('evolve.selectTier3');
     }
   }
 
@@ -200,42 +328,13 @@
   });
 
   // ── 진화 선택 ──
-  if (evolveCapacitor) {
-    evolveCapacitor.addEventListener('click', () => {
-      socket.emit('player_evolve', { className: 'capacitor' });
+  ['capacitor','repeater','inductor','transformer','oscillator','amplifier'].forEach(cls => {
+    const btn = document.getElementById('evolve' + cls.charAt(0).toUpperCase() + cls.slice(1));
+    if (btn) btn.addEventListener('click', () => {
+      socket.emit('player_evolve', { className: cls });
       if (evolveOverlay) evolveOverlay.classList.add('hidden');
     });
-  }
-  if (evolveRepeater) {
-    evolveRepeater.addEventListener('click', () => {
-      socket.emit('player_evolve', { className: 'repeater' });
-      if (evolveOverlay) evolveOverlay.classList.add('hidden');
-    });
-  }
-  if (evolveInductor) {
-    evolveInductor.addEventListener('click', () => {
-      socket.emit('player_evolve', { className: 'inductor' });
-      if (evolveOverlay) evolveOverlay.classList.add('hidden');
-    });
-  }
-  if (evolveTransformer) {
-    evolveTransformer.addEventListener('click', () => {
-      socket.emit('player_evolve', { className: 'transformer' });
-      if (evolveOverlay) evolveOverlay.classList.add('hidden');
-    });
-  }
-  if (evolveOscillator) {
-    evolveOscillator.addEventListener('click', () => {
-      socket.emit('player_evolve', { className: 'oscillator' });
-      if (evolveOverlay) evolveOverlay.classList.add('hidden');
-    });
-  }
-  if (evolveAmplifier) {
-    evolveAmplifier.addEventListener('click', () => {
-      socket.emit('player_evolve', { className: 'amplifier' });
-      if (evolveOverlay) evolveOverlay.classList.add('hidden');
-    });
-  }
+  });
 
   // ── 플레이 ──
   playBtn.addEventListener('click', joinGame);
@@ -294,6 +393,8 @@
     const guideOverlay = document.getElementById('gameGuideOverlay');
     if (guideOverlay) {
       guideOverlay.classList.remove('hidden');
+      // 셀 점령 일러스트 캔버스 그리기
+      _drawGuideCellIllust(selectedTeam);
       const dismissGuide = () => {
         if (guideOverlay.classList.contains('hidden')) return;
         guideOverlay.classList.add('fade-out');
@@ -309,9 +410,16 @@
     }
   });
 
+  // ── 맵 설정 수신 (접속 시 1회) ──
+  socket.on('map_config', (config) => {
+    cachedMapConfig = config;
+    console.log('[Client] Map config received:', config.name);
+  });
+
   // ── 맵 변경 알림 ──
   socket.on('map_changed', ({ mapId }) => {
     acceptedMapId = mapId;
+    cachedMapConfig = null; // 맵 변경 시 캐시 무효화
     console.log('[Client] Map changed by server:', mapId);
   });
 
@@ -323,36 +431,41 @@
     console.log(`[Client] Evolved to ${className} (Lv.${level})`);
   });
 
+  // ── 일일 최고기록 수신 (피드백 #10) ──
+  socket.on('daily_records', (records) => {
+    const deathPanel = document.getElementById('dailyRecordsPanel');
+    const deathList = document.getElementById('dailyRecordsList');
+    const lobbyPanel = document.getElementById('lobbyRecordsPanel');
+    const lobbyList = document.getElementById('lobbyRecordsList');
+
+    if (!records || records.length === 0) {
+      if (deathPanel) deathPanel.classList.add('hidden');
+      if (lobbyPanel) lobbyPanel.classList.add('hidden');
+      return;
+    }
+    const rows = records.map(r => {
+      const teamColor = r.team === 'samsung' ? '#5a9bff' : '#ff6b80';
+      return `<div class="daily-record-row">
+        <span style="color:#ffd700;width:20px">#${r.rank}</span>
+        <span style="color:${teamColor};flex:1">${r.name}</span>
+        <span style="color:#6b7a8d;font-size:10px">${(r.className || '').charAt(0).toUpperCase()}</span>
+        <span style="color:#e0e6ed;width:50px;text-align:right">${r.score}</span>
+        <span style="color:#ff6b6b;width:30px;text-align:right">${r.kills}K</span>
+      </div>`;
+    }).join('');
+
+    // 사망 화면 패널
+    if (deathList) { deathList.innerHTML = rows; deathPanel.classList.remove('hidden'); }
+    // 홈 화면 패널
+    if (lobbyList) { lobbyList.innerHTML = rows; lobbyPanel.classList.remove('hidden'); }
+  });
+
   // 리스폰
   respawnBtn.addEventListener('click', () => {
     socket.emit('player_respawn');
     deathScreen.classList.add('hidden');
     alive = true;
-    spectateTarget = null;  // 리스폰 시 관전 종료
-  });
-
-  // 관전 대상 전환 (클릭 또는 스페이스바)
-  function cycleSpectateTarget() {
-    if (alive || !lastState) return;
-    const teammates = lastState.players.filter(p => p.team === myTeam && p.alive && p.id !== myId);
-    if (teammates.length > 0) {
-      spectateIndex = (spectateIndex + 1) % teammates.length;
-      spectateTarget = teammates[spectateIndex].id;
-      updateSpectateInfo(teammates[spectateIndex]);
-    }
-  }
-
-  window.addEventListener('click', (e) => {
-    // 버튼 클릭은 무시
-    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') return;
-    cycleSpectateTarget();
-  });
-
-  window.addEventListener('keydown', (e) => {
-    if (e.code === 'Space' && !alive && !Chat.isInputFocused()) {
-      e.preventDefault();
-      cycleSpectateTarget();
-    }
+    // 리스폰 처리
   });
 
   // 홈으로 돌아가기
@@ -378,6 +491,10 @@
   // ── 스냅샷 수신 ──
   let lastProcessedEvents = 0;
   socket.on('game_snapshot', (snapshot) => {
+    // 캐시된 맵 설정 머지 (서버에서 매 프레임 전송 중단)
+    if (cachedMapConfig && !snapshot.mapConfig) {
+      snapshot.mapConfig = cachedMapConfig;
+    }
     Interpolation.pushSnapshot(snapshot);
     lastState = snapshot;
 
@@ -407,6 +524,13 @@
           revengeTargetName = null;
         }
         Renderer.setRevengeTarget(revengeTargetId);
+      } else if (me && !me.alive && !alive) {
+        // 사망 중 최신 스냅샷으로 점수 갱신 (투사체 후속 킬 반영)
+        const curScore = me.score || 0;
+        if (deathInfo) {
+          const totalKills = playerStats.totalKills || 0;
+          deathInfo.innerHTML = `<span style="color:#ffd700">${I18n.t('stats.kills')}: ${totalKills}</span> | <span style="color:#60a5fa">${I18n.t('stats.score')}: ${curScore}</span>`;
+        }
       } else if (me && me.alive && !alive) {
         alive = true;
         Chat.setPlayerAlive(true);
@@ -444,11 +568,11 @@
         const tier3Ready = me && me.level >= 5 && (me.className === 'capacitor' || me.className === 'repeater');
         const isMob = typeof Mobile !== 'undefined' && Mobile.isMobile();
         if ((tier2Ready || tier3Ready) && evolveOverlayHidden) {
-          const keyHint = isMob ? '⚡ 버튼' : 'E키';
+          const keyHint = isMob ? '⚡' : 'E';
           if (tier3Ready) {
-            evolveReminder.textContent = `⚡ ${keyHint}를 눌러 2차 진화!`;
+            evolveReminder.textContent = I18n.t('hud.evolveReminderTier3', { key: keyHint });
           } else {
-            evolveReminder.textContent = `⚡ ${keyHint}를 눌러 진화!`;
+            evolveReminder.textContent = I18n.t('hud.evolveReminderTier2', { key: keyHint });
           }
           evolveReminder.classList.remove('hidden');
         } else {
@@ -476,7 +600,7 @@
             }
             const streak = killTimestamps.length;
             if (streak >= 2) {
-              const label = streak <= 5 ? STREAK_LABELS[streak] : 'LEGENDARY';
+              const label = streak <= 5 ? STREAK_LABELS[streak] : I18n.t('streak.legendary');
               const colors = ['', '', '#ff9900', '#ff4400', '#ff00cc', '#ff00ff'];
               const color = streak <= 5 ? colors[streak] : '#ff00ff';
               Renderer.addFloatingText(label, me.x, me.y - 55, color);
@@ -485,18 +609,18 @@
           }
           // Q-5: 복수 킬 이벤트
           if (evt.type === 'revenge' && evt.killer === me.name) {
-            Renderer.addFloatingText('REVENGE! +30 XP', me.x, me.y - 70, '#ff2200');
+            Renderer.addFloatingText(I18n.t('game.revenge'), me.x, me.y - 70, '#ff2200');
             revengeTargetId = null;
             revengeTargetName = null;
             Renderer.setRevengeTarget(null);
           }
           // 어시스트 이벤트 (내가 기여한 경우)
           if (evt.type === 'assist' && evt.playerId === myId) {
-            Renderer.addFloatingText('ASSIST +25 XP', me.x, me.y - 45, '#87ceeb');
+            Renderer.addFloatingText(I18n.t('game.assist'), me.x, me.y - 45, '#87ceeb');
           }
           // 몬스터 킬 이벤트
           if (evt.type === 'monster_kill' && evt.team === me.team) {
-            Renderer.addFloatingText('BOSS KILL!', me.x, me.y - 35, '#ffd700');
+            Renderer.addFloatingText(I18n.t('game.bossKill'), me.x, me.y - 35, '#ffd700');
             if (typeof Sound !== 'undefined') Sound.play('bossSpawn');
             playerStats.bossKills++;
             saveStats(playerStats);
@@ -521,7 +645,7 @@
       // 레벨업 감지 (이전 레벨과 비교)
       if (me && lastMyLevel !== undefined && me.level > lastMyLevel) {
         if (Renderer.addFloatingText) {
-          Renderer.addFloatingText('LEVEL UP!', me.x, me.y - 40, '#00ff88');
+          Renderer.addFloatingText(I18n.t('game.levelUp'), me.x, me.y - 40, '#00ff88');
         }
         if (typeof Sound !== 'undefined') Sound.play('levelup');
       }
@@ -551,102 +675,70 @@
   function showDeathScreen(me) {
     deathScreen.classList.remove('hidden');
     if (evolveOverlay) evolveOverlay.classList.add('hidden');
-    deathInfo.textContent = `K: ${me.kills} / D: ${me.deaths}`;
 
-    // Task 4: 사망 원인 표시
+    // 누적 킬 + 현재 점수 표시 (피드백 #9)
+    const totalKills = playerStats.totalKills || 0;
+    const curScore = me.score || 0;
+    deathInfo.innerHTML = `<span style="color:#ffd700">${I18n.t('stats.kills')}: ${totalKills}</span> | <span style="color:#60a5fa">${I18n.t('stats.score')}: ${curScore}</span>`;
+
+    // 사망 원인 표시
     const killerEl = document.getElementById('deathKiller');
     if (killerEl && me.lastKilledBy) {
       const kb = me.lastKilledBy;
       const isMob = typeof Mobile !== 'undefined' && Mobile.isMobile();
       const killerText = isMob
-        ? `☠ ${kb.name}`
-        : `☠ ${kb.name} (${kb.className.toUpperCase()})에게 처치됨`;
+        ? I18n.t('death.killedByMobile', { name: kb.name })
+        : I18n.t('death.killedBy', { name: kb.name, class: kb.className.toUpperCase() });
       killerEl.innerHTML = killerText;
-      // Q-5: 플레이어에게 죽은 경우 복수 안내 표시
       if (kb.id) {
-        killerEl.innerHTML += `<br><span style="color:#ff4444;font-size:${isMob ? '11' : '12'}px">⚔ 복수 시 보너스 XP!</span>`;
+        killerEl.innerHTML += `<br><span style="color:#ff4444;font-size:${isMob ? '11' : '12'}px">${I18n.t('death.revengeHint')}</span>`;
       }
     } else if (killerEl) {
       killerEl.textContent = '';
     }
 
-    // 관전 모드 활성화
-    if (lastState) {
-      const teammates = lastState.players.filter(p => p.team === myTeam && p.alive && p.id !== myId);
-      if (teammates.length > 0) {
-        spectateIndex = 0;
-        spectateTarget = teammates[0].id;
-        updateSpectateInfo(teammates[0]);
-      } else {
-        spectateTarget = null;
-        updateSpectateInfo(null);
-      }
-    }
+    // 일일 최고기록 요청 (피드백 #10)
+    socket.emit('get_daily_records');
 
-    respawnBtn.classList.add('hidden');
+    // 리스폰 버튼: 처음부터 회색으로 표시, 5초 후 활성화 (피드백 #9)
+    respawnBtn.disabled = true;
+    respawnBtn.classList.add('respawn-disabled');
+    respawnBtn.classList.remove('hidden');
 
     let countdown = 5;
-    deathTimer.textContent = `리스폰까지 ${countdown}초...`;
+    respawnBtn.textContent = I18n.t('death.respawnTimer', { count: countdown });
     const timer = setInterval(() => {
       countdown--;
       if (countdown <= 0) {
         clearInterval(timer);
-        deathTimer.textContent = '';
-        respawnBtn.classList.remove('hidden');
+        respawnBtn.textContent = I18n.t('death.respawn');
+        respawnBtn.disabled = false;
+        respawnBtn.classList.remove('respawn-disabled');
       } else {
-        deathTimer.textContent = `리스폰까지 ${countdown}초...`;
+        respawnBtn.textContent = I18n.t('death.respawnTimer', { count: countdown });
       }
     }, 1000);
   }
 
-  function updateSpectateInfo(target) {
-    const el = document.getElementById('spectateInfo');
-    if (!el) return;
-    if (target) {
-      const isMob = typeof Mobile !== 'undefined' && Mobile.isMobile();
-      if (isMob) {
-        el.textContent = `👁 ${target.name} — 탭하여 전환`;
-      } else {
-        el.textContent = `👁 관전: ${target.name} (${target.className.toUpperCase()}) — 클릭으로 전환`;
-      }
-      el.classList.remove('hidden');
-    } else {
-      el.textContent = '';
-      el.classList.add('hidden');
-    }
-  }
-
-  // ── 게임 루프 ──
+  // ── 게임 루프 (60 FPS 캡) ──
   const INPUT_SEND_RATE = 50;
   let lastInputSend = 0;
+  const TARGET_FRAME_MS = 1000 / 60;
+  let lastFrameTime = 0;
 
   function gameLoop(timestamp) {
     if (!joined) return;
 
+    // 60 FPS 캡 — 120Hz 디스플레이에서 불필요한 렌더링 방지
+    if (timestamp - lastFrameTime < TARGET_FRAME_MS * 0.9) {
+      requestAnimationFrame(gameLoop);
+      return;
+    }
+    lastFrameTime = timestamp;
+
     const state = Interpolation.getInterpolatedState();
     if (state) {
-      // 관전 모드: 죽었고 타겟이 있으면 해당 타겟의 시점으로 카메라 이동
-      let renderTargetId = myId;
-      if (!alive && spectateTarget && state) {
-        const target = state.players.find(p => p.id === spectateTarget);
-        if (target && target.alive) {
-          renderTargetId = spectateTarget;
-        } else {
-          // 관전 대상이 죽었으면 다음 팀원으로 자동 전환
-          const teammates = state.players.filter(p => p.team === myTeam && p.alive && p.id !== myId);
-          if (teammates.length > 0) {
-            spectateIndex = 0;
-            spectateTarget = teammates[0].id;
-            renderTargetId = spectateTarget;
-            updateSpectateInfo(teammates[0]);
-          } else {
-            spectateTarget = null;
-            renderTargetId = myId;
-            updateSpectateInfo(null);
-          }
-        }
-      }
-      Renderer.render(state, renderTargetId);
+      Renderer.render(state, myId);
       HUD.update(state, myId);
     }
 
@@ -731,7 +823,7 @@
 
     // 로비 컨트롤 힌트 변경
     const hint = document.getElementById('controlsHint');
-    if (hint) hint.textContent = '터치 이동 · 자동 전투 · 상단 아이콘 탭';
+    if (hint) hint.textContent = I18n.t('start.controlsHintMobile');
 
     // 진화 버튼
     const btnEvolve = document.getElementById('btnMobileEvolve');

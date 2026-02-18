@@ -339,6 +339,10 @@ class Monster {
     this.wanderAngle = Math.random() * Math.PI * 2;
     this.wanderTimer = 0;              // 방향 전환 타이머
 
+    // 이벤트 보스 태그 (EventEngine에서 동적 할당 → 생성자 초기화)
+    this.isEventBoss = false;
+    this.eventId = null;
+
     // 펄스 전용
     this.pulseActive = false;
     this.pulseTimer = 0;

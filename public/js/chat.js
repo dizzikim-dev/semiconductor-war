@@ -71,8 +71,10 @@ const Chat = (() => {
       chatInput.addEventListener('keypress', (e) => e.stopPropagation());
     }
 
-    // Resize
+    // Resize — 이전 리스너 정리 후 등록 (메모리 누수 방지)
     if (resizeHandle) resizeHandle.addEventListener('mousedown', onResizeStart);
+    window.removeEventListener('mousemove', onResizeMove);
+    window.removeEventListener('mouseup', onResizeEnd);
     window.addEventListener('mousemove', onResizeMove);
     window.addEventListener('mouseup', onResizeEnd);
 
@@ -104,7 +106,7 @@ const Chat = (() => {
     hub.classList.add('hub-combat');
     hub.style.width = '';
     if (modeIcon) modeIcon.innerHTML = '&#9664;';
-    if (modeLabel) modeLabel.textContent = 'OPEN';
+    if (modeLabel) modeLabel.textContent = typeof I18n !== 'undefined' ? I18n.t('chat.open') : 'OPEN';
     if (chatInput) chatInput.blur();
     const c = document.getElementById('gameCanvas');
     if (c) c.focus();
@@ -117,7 +119,7 @@ const Chat = (() => {
     hub.classList.add('hub-community');
     hub.style.width = communityW + 'px';
     if (modeIcon) modeIcon.innerHTML = '&#9654;';
-    if (modeLabel) modeLabel.textContent = 'CLOSE';
+    if (modeLabel) modeLabel.textContent = typeof I18n !== 'undefined' ? I18n.t('chat.close') : 'CLOSE';
     unreadCount = 0;
     if (unreadBadge) unreadBadge.classList.add('hidden');
     scrollToBottom();

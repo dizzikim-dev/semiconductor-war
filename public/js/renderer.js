@@ -50,8 +50,12 @@ const Renderer = (() => {
   };
 
   const resize = () => {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = window.innerWidth * dpr;
+    canvas.height = window.innerHeight * dpr;
+    canvas.style.width = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+    if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   };
 
   const getCamera = () => camera;
@@ -60,7 +64,7 @@ const Renderer = (() => {
 
   // 모바일 줌 (0.65 = 더 멀리서 봄)
   const _isMobileDevice = () => typeof Mobile !== 'undefined' && Mobile.isMobile();
-  const MOBILE_ZOOM = 0.65;
+  const MOBILE_ZOOM = 0.8;
 
   const render = (state, myId) => {
     if (!state) return;
@@ -72,14 +76,17 @@ const Renderer = (() => {
     const mapW = currentMapConfig ? currentMapConfig.world.width : 2400;
     const mapH = currentMapConfig ? currentMapConfig.world.height : 1600;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const dpr = window.devicePixelRatio || 1;
+    const vw = canvas.width / dpr;
+    const vh = canvas.height / dpr;
+    ctx.clearRect(0, 0, vw, vh);
 
     const me = state.players.find(p => p.id === myId);
     if (me) { camera.x = me.x; camera.y = me.y; }
 
     const zoom = _isMobileDevice() ? MOBILE_ZOOM : 1;
     ctx.save();
-    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.translate(vw / 2, vh / 2);
     ctx.scale(zoom, zoom);
     ctx.translate(-camera.x, -camera.y);
 
@@ -139,7 +146,7 @@ const Renderer = (() => {
           ctx.font = 'bold 18px Share Tech Mono';
           ctx.fillStyle = enemyColor;
           ctx.textAlign = 'center';
-          ctx.fillText('⚠ DANGER ⚠', spawn.x, spawn.y - spawnZoneRadius - 15);
+          ctx.fillText(I18n.t('game.dangerZone'), spawn.x, spawn.y - spawnZoneRadius - 15);
           ctx.restore();
         }
       }
@@ -588,21 +595,43 @@ const Renderer = (() => {
       ctx.fill();
 
       // ── 스폰 보호 존 경계 (Spawn Protection Zone) ──
-      ctx.globalAlpha = 0.12;
+      const spawnPulse = 0.15 * Math.sin(performance.now() / 600);
+      ctx.globalAlpha = 0.30 + spawnPulse;
       ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2.5;
       ctx.setLineDash([8, 6]);
       ctx.beginPath();
       ctx.arc(0, 0, spawnZoneRadius, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // 경고 텍스트 (적에게만 의미있음)
-      ctx.globalAlpha = 0.3;
-      ctx.font = '7px Share Tech Mono';
+      // 방패 스파이크 (12개 삼각형) — 보호 느낌 강화
+      ctx.globalAlpha = 0.20 + spawnPulse * 0.5;
+      ctx.fillStyle = color;
+      for (let si = 0; si < 12; si++) {
+        const sa = (Math.PI * 2 / 12) * si;
+        const spikeLen = 12;
+        const bx = Math.cos(sa) * spawnZoneRadius;
+        const by = Math.sin(sa) * spawnZoneRadius;
+        const tx = Math.cos(sa) * (spawnZoneRadius + spikeLen);
+        const ty = Math.sin(sa) * (spawnZoneRadius + spikeLen);
+        const sa2 = sa + Math.PI / 12;
+        const rx = Math.cos(sa2) * (spawnZoneRadius + 4);
+        const ry = Math.sin(sa2) * (spawnZoneRadius + 4);
+        ctx.beginPath();
+        ctx.moveTo(bx, by);
+        ctx.lineTo(tx, ty);
+        ctx.lineTo(rx, ry);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // 경고 텍스트
+      ctx.globalAlpha = 0.7;
+      ctx.font = '10px Share Tech Mono';
       ctx.fillStyle = color;
       ctx.textAlign = 'center';
-      ctx.fillText('⚠ PROTECTED ZONE', 0, -spawnZoneRadius + 10);
+      ctx.fillText(I18n.t('game.protectedZone'), 0, -spawnZoneRadius + 12);
 
       // IC 칩 본체 (직사각형)
       ctx.globalAlpha = 0.15;
@@ -649,7 +678,7 @@ const Renderer = (() => {
       ctx.fillText(label, 0, -4);
       ctx.globalAlpha = 0.4;
       ctx.font = '8px Share Tech Mono';
-      ctx.fillText('FAB SPAWN', 0, 10);
+      ctx.fillText(I18n.t('game.fabSpawn'), 0, 10);
 
       // 다이 마크 (1번 핀 표시)
       ctx.globalAlpha = 0.5;
@@ -1170,17 +1199,39 @@ const Renderer = (() => {
 
       // 점령 범위 (파괴/재건 상태일 때)
       if (isDestroyed || isRebuilding) {
-        ctx.globalAlpha = 0.08;
+        const isCapturing = cell.captureProgress > 0 && cell.captureTeam;
+        const capPulse = isCapturing ? 0.08 * Math.sin(Date.now() / 300) : 0;
+        ctx.globalAlpha = (isCapturing ? 0.18 : 0.08) + capPulse;
         ctx.fillStyle = cell.captureTeam ? CELL_COLORS[cell.captureTeam] : '#ffffff';
         ctx.beginPath();
         ctx.arc(0, 0, bal.captureRadius, 0, Math.PI * 2);
         ctx.fill();
-        ctx.globalAlpha = 0.2;
+        ctx.globalAlpha = isCapturing ? 0.5 : 0.2;
         ctx.strokeStyle = cell.captureTeam ? CELL_COLORS[cell.captureTeam] : '#555';
-        ctx.lineWidth = 1;
+        ctx.lineWidth = isCapturing ? 2 : 1;
         ctx.setLineDash([3, 5]);
         ctx.stroke();
         ctx.setLineDash([]);
+
+        // CAPTURING 텍스트 (진행 중일 때)
+        if (isCapturing) {
+          const capColor = CELL_COLORS[cell.captureTeam];
+          const secDone = Math.floor(cell.captureProgress / 1000);
+          const totalSec = Math.ceil(bal.captureTime / 1000);
+          ctx.globalAlpha = 0.9;
+          ctx.fillStyle = capColor;
+          ctx.font = 'bold 10px Share Tech Mono';
+          ctx.textAlign = 'center';
+          ctx.fillText(I18n.t('game.capturing', { done: secDone, total: totalSec }), 0, bal.captureRadius + 14);
+        } else if (isRebuilding) {
+          ctx.globalAlpha = 0.8;
+          ctx.fillStyle = CELL_COLORS[cell.captureTeam] || '#ffd700';
+          ctx.font = 'bold 10px Share Tech Mono';
+          ctx.textAlign = 'center';
+          const rbSec = Math.floor((cell.rebuildProgress || 0) / 1000);
+          const rbTotal = Math.ceil(bal.rebuildTime / 1000);
+          ctx.fillText(I18n.t('game.rebuildingProgress', { done: rbSec, total: rbTotal }), 0, bal.captureRadius + 14);
+        }
       }
 
       // 무적 표시
@@ -1353,17 +1404,17 @@ const Renderer = (() => {
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
       if (isDestroyed) {
-        ctx.fillText('DESTROYED', 0, r + 14);
+        ctx.fillText(I18n.t('game.destroyed'), 0, r + 14);
       } else if (isRebuilding) {
-        ctx.fillText('REBUILDING', 0, r + 14);
+        ctx.fillText(I18n.t('game.rebuilding'), 0, r + 14);
       } else if (cell.warmup) {
-        ctx.fillText('WARMING UP', 0, r + 14);
+        ctx.fillText(I18n.t('game.warmingUp'), 0, r + 14);
       } else if ((cell.overheat || 0) >= 0.6) {
         const ohPulse = 0.7 + 0.3 * Math.sin(Date.now() / 150);
         ctx.globalAlpha = ohPulse;
         ctx.font = 'bold 9px Share Tech Mono';
         ctx.fillStyle = '#ff2040';
-        ctx.fillText('⚠ OVERHEAT', 0, r + 14);
+        ctx.fillText(I18n.t('game.overheat'), 0, r + 14);
       }
 
       // 셀 ID
@@ -1949,19 +2000,53 @@ const Renderer = (() => {
   };
 
   const drawMinions = (minions) => {
+    const t = performance.now() / 1000;
     for (const m of minions) {
       if (!m.alive) continue;
       const color = TEAM_COLORS[m.team];
+      const r = m.radius;
       ctx.save();
       ctx.translate(m.x, m.y);
+
+      // 팀 글로우
+      ctx.globalAlpha = 0.15;
       ctx.fillStyle = color;
-      ctx.globalAlpha = 0.7;
-      ctx.fillRect(-m.radius, -m.radius, m.radius * 2, m.radius * 2);
-      ctx.strokeStyle = color;
-      ctx.globalAlpha = 1;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 2.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 회전 다이아몬드 바디
+      ctx.globalAlpha = 0.8;
+      ctx.rotate(t * 2 + m.x * 0.01);
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(0, -r);
+      ctx.lineTo(r, 0);
+      ctx.lineTo(0, r);
+      ctx.lineTo(-r, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.globalAlpha = 0.5;
       ctx.lineWidth = 1;
-      ctx.strokeRect(-m.radius, -m.radius, m.radius * 2, m.radius * 2);
+      ctx.stroke();
+
       ctx.restore();
+
+      // HP 바 (미니언 위에)
+      if (m.hp != null && m.maxHp) {
+        const hpRatio = m.hp / m.maxHp;
+        if (hpRatio < 1) {
+          const bw = r * 2.4, bh = 2;
+          ctx.save();
+          ctx.globalAlpha = 0.6;
+          ctx.fillStyle = '#0a0e17';
+          ctx.fillRect(m.x - bw / 2, m.y - r - 6, bw, bh);
+          ctx.fillStyle = hpRatio > 0.5 ? color : '#f59e0b';
+          ctx.fillRect(m.x - bw / 2, m.y - r - 6, bw * hpRatio, bh);
+          ctx.restore();
+        }
+      }
     }
   };
 
@@ -2419,36 +2504,45 @@ const Renderer = (() => {
     }
   };
 
-  // 플로팅 텍스트 렌더링 (화면 좌표)
+  // 플로팅 텍스트 렌더링 (화면 좌표) — filter() 방식으로 최적화
   const drawFloatingTexts = (dt) => {
-    for (let i = _floatingTexts.length - 1; i >= 0; i--) {
+    const dpr = window.devicePixelRatio || 1;
+    const hw = canvas.width / (2 * dpr);
+    const hh = canvas.height / (2 * dpr);
+    let writeIdx = 0;
+    for (let i = 0; i < _floatingTexts.length; i++) {
       const ft = _floatingTexts[i];
       ft.y += ft.vy * dt;
       ft.life -= dt;
+      if (ft.life <= 0) continue;
       ft.alpha = Math.max(0, ft.life / 1.2);
-      if (ft.life <= 0) { _floatingTexts.splice(i, 1); continue; }
       ctx.save();
       ctx.globalAlpha = ft.alpha;
       ctx.fillStyle = ft.color;
       ctx.font = 'bold 14px Share Tech Mono';
       ctx.textAlign = 'center';
-      ctx.fillText(ft.text, ft.x - camera.x + canvas.width / 2, ft.y - camera.y + canvas.height / 2);
+      ctx.fillText(ft.text, ft.x - camera.x + hw, ft.y - camera.y + hh);
       ctx.restore();
+      _floatingTexts[writeIdx++] = ft;
     }
+    _floatingTexts.length = writeIdx;
   };
 
   const updateAndDrawParticles = () => {
     const dt = 1 / 60;
-    for (let i = particles.length - 1; i >= 0; i--) {
+    let writeIdx = 0;
+    for (let i = 0; i < particles.length; i++) {
       const p = particles[i];
       p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt;
-      if (p.life <= 0) { particles.splice(i, 1); continue; }
+      if (p.life <= 0) continue;
       ctx.save();
       ctx.globalAlpha = p.life / p.maxLife;
       ctx.fillStyle = p.color;
       ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
       ctx.restore();
+      particles[writeIdx++] = p;
     }
+    particles.length = writeIdx;
   };
 
   // 이벤트 존 (Admin Event System)
@@ -2478,7 +2572,7 @@ const Renderer = (() => {
       ctx.font = '10px Orbitron';
       ctx.fillStyle = zone.color || '#76b900';
       ctx.textAlign = 'center';
-      ctx.fillText(zone.label || 'EVENT ZONE', zone.x, zone.y - zone.radius - 8);
+      ctx.fillText(zone.label || I18n.t('game.eventZone'), zone.x, zone.y - zone.radius - 8);
 
       // 효과 아이콘
       ctx.font = '18px sans-serif';
@@ -2529,7 +2623,7 @@ const Renderer = (() => {
         ctx.font = '11px Orbitron';
         ctx.fillStyle = '#ff6b00';
         ctx.textAlign = 'center';
-        ctx.fillText('\u26A0 PLASMA ETCH', hz.x, hz.y - hz.radius - 10);
+        ctx.fillText(I18n.t('game.plasmaEtch'), hz.x, hz.y - hz.radius - 10);
 
         // 중앙 X 마크
         ctx.globalAlpha = 0.4 + blink * 0.3;
@@ -2575,7 +2669,7 @@ const Renderer = (() => {
         ctx.fillStyle = '#ff2040';
         ctx.textAlign = 'center';
         const secLeft = Math.ceil(hz.timer / 1000);
-        ctx.fillText(`PLASMA ETCH  ${secLeft}s`, hz.x, hz.y - hz.radius - 8);
+        ctx.fillText(I18n.t('game.plasmaEtchTimer', { sec: secLeft }), hz.x, hz.y - hz.radius - 8);
 
         // 해골 아이콘
         ctx.font = '20px sans-serif';

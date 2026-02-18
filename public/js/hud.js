@@ -7,6 +7,16 @@ const HUD = (() => {
   const eventBannerQueue = [];
   const EVENT_BANNER_DURATION = 5000;
 
+  // ── DOM 변경 감지용 캐시 (매 프레임 innerHTML 방지) ──
+  let _lastScoreHtml = '';
+  let _lastLeaderHtml = '';
+  let _lastBossHtml = '';
+  let _lastBuffHtml = '';
+  let _lastStockHtml = '';
+  let _lastKillFeedHtml = '';
+  let _lastEventsHtml = '';
+  let _lastObjectiveHtml = '';
+
   const init = () => {
     els.hud = document.getElementById('hud');
     els.timer = document.getElementById('hudTimer');
@@ -22,6 +32,7 @@ const HUD = (() => {
     els.activeEventsPanel = document.getElementById('hudActiveEvents');
     els.buffPanel = document.getElementById('hudBuffPanel');
     els.bossInfo = document.getElementById('hudBossInfo');
+    els.objective = document.getElementById('hudObjective');
   };
 
   const show = () => els.hud.classList.remove('hidden');
@@ -35,14 +46,20 @@ const HUD = (() => {
     // 라운드 타이머 비활성화
     if (els.timer) els.timer.textContent = '';
 
-    // 영토 점수 레이블 추가 (한 번만)
-    if (!document.getElementById('territoryLabel')) {
-      const label = document.createElement('div');
-      label.id = 'territoryLabel';
-      label.style.cssText = 'font-size:9px; color:#6b7a8d; text-align:center; margin-bottom:2px; letter-spacing:1px;';
-      label.textContent = 'TERRITORY — 승리 조건';
-      if (els.score && els.score.parentNode) {
-        els.score.parentNode.insertBefore(label, els.score);
+    // 영토 점수 레이블 추가 (한 번만, 캐싱)
+    if (!els.territoryLabel) {
+      const existing = document.getElementById('territoryLabel');
+      if (existing) {
+        els.territoryLabel = existing;
+      } else {
+        const label = document.createElement('div');
+        label.id = 'territoryLabel';
+        label.style.cssText = 'font-size:9px; color:#6b7a8d; text-align:center; margin-bottom:2px; letter-spacing:1px;';
+        label.textContent = I18n.t('hud.territory');
+        if (els.score && els.score.parentNode) {
+          els.score.parentNode.insertBefore(label, els.score);
+        }
+        els.territoryLabel = label;
       }
     }
 
@@ -51,12 +68,16 @@ const HUD = (() => {
     const skhTerritory = (state.territoryScore && state.territoryScore.skhynix) || 0;
     const samCells = state.cells ? state.cells.filter(c => c.ownerTeam === 'samsung' && c.state === 'owned').length : 0;
     const skhCells = state.cells ? state.cells.filter(c => c.ownerTeam === 'skhynix' && c.state === 'owned').length : 0;
-    els.score.innerHTML =
+    const scoreHtml =
       `<span style="color:#1e64ff">SAM ${samTerritory}</span>` +
       ` <span style="color:#6b7a8d;font-size:10px">[${samCells}]</span>` +
       ` : ` +
       `<span style="color:#6b7a8d;font-size:10px">[${skhCells}]</span>` +
       ` <span style="color:#ff3250">${skhTerritory} SKH</span>`;
+    if (scoreHtml !== _lastScoreHtml) {
+      els.score.innerHTML = scoreHtml;
+      _lastScoreHtml = scoreHtml;
+    }
 
     // 맵 이름
     if (state.mapConfig && els.mapName) {
@@ -92,13 +113,13 @@ const HUD = (() => {
           addKillFeed(`<span style="color:#ffd700">EVENT</span> ${escapeHtml(label)}`);
           eventBannerQueue.push({ text: label, time: Date.now() });
         } else if (evt.type === 'hazard_warning') {
-          addKillFeed('<span style="color:#ff6b00">\u26A0 PLASMA ETCH</span> incoming!');
+          addKillFeed(`<span style="color:#ff6b00">${I18n.t('killfeed.plasmaIncoming')}</span>`);
         } else if (evt.type === 'hazard_activate') {
-          addKillFeed('<span style="color:#ff2040">\u2620 PLASMA ETCH</span> zone active!');
+          addKillFeed(`<span style="color:#ff2040">${I18n.t('killfeed.plasmaActive')}</span>`);
         } else if (evt.type === 'boss_spawn') {
-          addKillFeed(`<span style="color:${evt.color}">\u2605 ${escapeHtml(evt.bossName)}</span> has appeared! (${escapeHtml(evt.buffLabel)})`);
+          addKillFeed(`<span style="color:${evt.color}">\u2605 ${escapeHtml(evt.bossName)}</span> ${I18n.t('killfeed.appeared')} (${escapeHtml(evt.buffLabel)})`);
         } else if (evt.type === 'pickup_buff') {
-          addKillFeed(`<span style="color:#00e5ff">\u26A1 ${escapeHtml(evt.buffLabel)}</span> acquired`);
+          addKillFeed(`<span style="color:#00e5ff">\u26A1 ${escapeHtml(evt.buffLabel)}</span> ${I18n.t('killfeed.acquired')}`);
         } else if (evt.type === 'pulse') {
           // 펄스 이펙트 트리거
           if (typeof Renderer !== 'undefined' && Renderer.addPulseEffect) {
@@ -139,6 +160,9 @@ const HUD = (() => {
     // 버프 패널 (개인 + 팀)
     renderBuffPanel(me, state.teamBuffs);
 
+    // 네비게이션 목표 (피드백 #3)
+    renderObjective(state, me);
+
     // 주가 패널 + 면책조항 + 뉴스 ticker
     renderStockPanel(state.marketData);
     renderDisclaimer(state.marketData);
@@ -153,7 +177,11 @@ const HUD = (() => {
   const renderKillFeed = () => {
     const now = Date.now();
     const active = killFeedQueue.filter(k => now - k.time < 4000);
-    els.killFeed.innerHTML = active.map(k => `<div class="kill-entry">${k.html}</div>`).join('');
+    const html = active.map(k => `<div class="kill-entry">${k.html}</div>`).join('');
+    if (html !== _lastKillFeedHtml) {
+      els.killFeed.innerHTML = html;
+      _lastKillFeedHtml = html;
+    }
   };
 
   const renderBossInfo = (info) => {
@@ -165,13 +193,13 @@ const HUD = (() => {
     if (info.status === 'alive') {
       const hpPct = Math.round((info.hp / info.maxHp) * 100);
       els.bossInfo.innerHTML =
-        `<div class="boss-label">BOSS</div>` +
+        `<div class="boss-label">${I18n.t('hud.boss')}</div>` +
         `<div class="boss-name" style="color:${info.color}">${info.name}</div>` +
         `<div class="boss-buff">${info.buffLabel}</div>` +
         `<div class="boss-hp-bar"><div class="boss-hp-fill" style="width:${hpPct}%;background:${info.color}"></div></div>`;
     } else {
       els.bossInfo.innerHTML =
-        `<div class="boss-label">NEXT BOSS</div>` +
+        `<div class="boss-label">${I18n.t('hud.nextBoss')}</div>` +
         `<div class="boss-name" style="color:${info.nextColor}">${info.nextName}</div>` +
         `<div class="boss-buff">${info.nextBuffLabel}</div>` +
         `<div class="boss-timer">${info.respawnTimer}s</div>`;
@@ -180,14 +208,17 @@ const HUD = (() => {
 
   const renderLeaderboard = (players, myId) => {
     const sorted = [...players].filter(p => p.alive || (p.score || 0) > 0).sort((a, b) => (b.score || 0) - (a.score || 0)).slice(0, 8);
-    let html = '<div class="lb-header">LEADERBOARD</div>';
+    let html = `<div class="lb-header">${I18n.t('hud.leaderboard')}</div>`;
     for (const p of sorted) {
       const cls = `lb-row ${p.team}${p.id === myId ? ' self' : ''}`;
       const classTag = p.className !== 'resistor' ? ` <span style="color:#6b7a8d;font-size:9px">${p.className.charAt(0).toUpperCase()}</span>` : '';
       const score = p.score || 0;
       html += `<div class="${cls}"><span>${p.name}${classTag}</span><span>Lv${p.level} ${score}</span></div>`;
     }
-    els.leaderboard.innerHTML = html;
+    if (html !== _lastLeaderHtml) {
+      els.leaderboard.innerHTML = html;
+      _lastLeaderHtml = html;
+    }
   };
 
   const formatPrice = (price) => {
@@ -260,16 +291,16 @@ const HUD = (() => {
   const renderStockPanel = (marketData) => {
     if (!els.stockPanel) return;
     if (!marketData) {
-      els.stockPanel.innerHTML = '<div class="stock-loading">주가 데이터 로딩 중...</div>';
+      els.stockPanel.innerHTML = `<div class="stock-loading">${I18n.t('hud.stockLoading')}</div>`;
       return;
     }
     const badgeClass = marketData.isMarketOpen ? 'open' : 'closed';
-    const badgeText = marketData.isMarketOpen ? 'OPEN' : 'CLOSED';
+    const badgeText = marketData.isMarketOpen ? I18n.t('hud.marketOpen') : I18n.t('hud.marketClosed');
     const samBuff = marketData.buffs ? marketData.buffs.samsung : null;
     const skhBuff = marketData.buffs ? marketData.buffs.skhynix : null;
     els.stockPanel.innerHTML =
       `<div class="stock-header">
-        <span>KRX STOCK</span>
+        <span>${I18n.t('hud.stockHeader')}</span>
         <span class="stock-badge ${badgeClass}">${badgeText}</span>
       </div>` +
       renderStockRow('SAM', '#1e64ff', marketData.samsung) +
@@ -284,10 +315,10 @@ const HUD = (() => {
       els.disclaimer.textContent = '';
       return;
     }
-    const disclaimer = marketData.disclaimer || '주가 정보는 15분 이상 지연된 데이터이며, 투자 참고용이 아닌 게임 연출 목적입니다.';
+    const disclaimer = I18n.t('hud.disclaimerKo');
     els.disclaimer.innerHTML =
       `<div>${escapeHtml(disclaimer)}</div>` +
-      `<div style="margin-top:2px">Stock data is delayed 15+ min. For game purposes only, not investment advice.</div>`;
+      `<div style="margin-top:2px">${escapeHtml(I18n.t('hud.disclaimerEn'))}</div>`;
   };
 
   const escapeHtml = (str) => {
@@ -299,7 +330,7 @@ const HUD = (() => {
     if (!els.newsBody) return;
     const news = marketData && marketData.news;
     if (!news || news.length === 0) {
-      els.newsBody.innerHTML = '<div style="color:#4a5568;text-align:center;padding:20px">뉴스 없음</div>';
+      els.newsBody.innerHTML = `<div style="color:#4a5568;text-align:center;padding:20px">${I18n.t('hud.noNews')}</div>`;
       return;
     }
 
@@ -404,8 +435,59 @@ const HUD = (() => {
       </div>`;
     }).join('');
 
-    els.buffPanel.innerHTML = html;
+    if (html !== _lastBuffHtml) {
+      els.buffPanel.innerHTML = html;
+      _lastBuffHtml = html;
+    }
     els.buffPanel.classList.remove('hidden');
+  };
+
+  // ── 네비게이션 목표 패널 (피드백 #3) ──
+  const renderObjective = (state, me) => {
+    if (!els.objective) return;
+    if (!state || !me) {
+      els.objective.classList.add('hidden');
+      return;
+    }
+
+    const myTeam = me.team;
+    const enemyTeam = myTeam === 'samsung' ? 'skhynix' : 'samsung';
+    const myCells = state.cells ? state.cells.filter(c => c.ownerTeam === myTeam && c.state === 'owned').length : 0;
+    const enemyCells = state.cells ? state.cells.filter(c => c.ownerTeam === enemyTeam && c.state === 'owned').length : 0;
+    const destroyedCells = state.cells ? state.cells.filter(c => c.state === 'destroyed').length : 0;
+    const level = me.level || 1;
+    const className = me.className || 'resistor';
+
+    // 게임 단계 판별
+    let phase, objective, hint;
+    if (level <= 1 && className === 'resistor') {
+      phase = I18n.t('objective.early');
+      objective = I18n.t('objective.earlyObj');
+      hint = I18n.t('objective.earlyHint');
+    } else if (level < 3 && destroyedCells > 0) {
+      phase = I18n.t('objective.mid');
+      objective = I18n.t('objective.midObj', { count: destroyedCells });
+      hint = I18n.t('objective.midHint');
+    } else if (myCells < enemyCells) {
+      phase = I18n.t('objective.contest');
+      objective = I18n.t('objective.contestObj', { my: myCells, enemy: enemyCells });
+      hint = I18n.t('objective.contestHint');
+    } else if (state.bossInfo && state.bossInfo.status === 'alive') {
+      phase = I18n.t('objective.boss');
+      objective = I18n.t('objective.bossObj');
+      hint = `${state.bossInfo.name} (${state.bossInfo.buffLabel})`;
+    } else {
+      phase = I18n.t('objective.push');
+      objective = I18n.t('objective.pushObj', { my: myCells, enemy: enemyCells });
+      hint = I18n.t('objective.pushHint');
+    }
+
+    const html = `<div class="obj-phase">${phase}</div><div class="obj-text">${objective}</div><div class="obj-hint">${hint}</div>`;
+    if (html !== _lastObjectiveHtml) {
+      els.objective.innerHTML = html;
+      _lastObjectiveHtml = html;
+    }
+    els.objective.classList.remove('hidden');
   };
 
   const renderActiveEvents = (activeEvents) => {
@@ -421,7 +503,7 @@ const HUD = (() => {
       const title = escapeHtml(e.titleKo || e.title || e.type);
       return `<div class="active-event-item">${icon} ${title} <span style="color:#ffd700">${remaining}s</span></div>`;
     }).join('');
-    els.activeEventsPanel.innerHTML = '<div class="ae-header">EVENTS</div>' + html;
+    els.activeEventsPanel.innerHTML = `<div class="ae-header">${I18n.t('hud.events')}</div>` + html;
     els.activeEventsPanel.classList.remove('hidden');
   };
 
