@@ -240,7 +240,8 @@ io.on('connection', (socket) => {
     const player = game.players.get(socket.id);
     if (player && !player.alive && player.respawnTimer <= 0) {
       // 리스폰 전 일일 기록 제출
-      dailyRecords.submit(player.name, player.team, player.score || 0, player.kills || 0, player.className || 'resistor');
+      const respawnUuid = userDataStore.getUuidBySocket(socket.id);
+      dailyRecords.submit(player.name, player.team, player.score || 0, player.kills || 0, player.className || 'resistor', respawnUuid);
       player.respawn();
     }
   });
@@ -250,7 +251,8 @@ io.on('connection', (socket) => {
     if (game) {
       const player = game.players.get(socket.id);
       if (player && !player.isBot) {
-        dailyRecords.submit(player.name, player.team, player.score || 0, player.kills || 0, player.className || 'resistor');
+        const reqUuid = userDataStore.getUuidBySocket(socket.id);
+        dailyRecords.submit(player.name, player.team, player.score || 0, player.kills || 0, player.className || 'resistor', reqUuid);
       }
     }
     socket.emit('daily_records', dailyRecords.getTop(50));
@@ -304,7 +306,8 @@ io.on('connection', (socket) => {
       } : {};
       // 일일 기록 제출
       if (player && !player.isBot) {
-        dailyRecords.submit(player.name, player.team, player.score || 0, player.kills || 0, player.className || 'resistor');
+        const dcUuid = userDataStore.getUuidBySocket(socket.id);
+        dailyRecords.submit(player.name, player.team, player.score || 0, player.kills || 0, player.className || 'resistor', dcUuid);
       }
       userDataStore.onPlayerDisconnect(socket.id, stats);
 
@@ -409,7 +412,8 @@ setInterval(() => {
   if (!game) return;
   for (const p of game.players.values()) {
     if (!p.isBot && p.alive && p.score > 0) {
-      dailyRecords.submit(p.name, p.team, p.score, p.kills || 0, p.className || 'resistor');
+      const pUuid = userDataStore.getUuidBySocket(p.id);
+      dailyRecords.submit(p.name, p.team, p.score, p.kills || 0, p.className || 'resistor', pUuid);
     }
   }
 }, 30000);

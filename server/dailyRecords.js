@@ -10,7 +10,7 @@ const MAX_RECORDS = 50;
 
 class DailyRecords {
   constructor() {
-    this._records = [];   // { name, team, score, kills, className, timestamp }
+    this._records = [];   // { uuid, name, team, score, kills, className, timestamp }
     this._dateKey = this._getKSTDateKey();
     this._saveTimer = null;
     this._load();
@@ -79,23 +79,28 @@ class DailyRecords {
   }
 
   /** 플레이어 사망/퇴장/주기적 기록 등록 */
-  submit(name, team, score, kills, className) {
+  submit(name, team, score, kills, className, uuid) {
     this._checkDateRollover();
     if (!name || score <= 0) return;
 
-    // 동일 닉네임의 기존 기록보다 높으면 교체
-    const existing = this._records.find(r => r.name === name);
+    // uuid가 있으면 uuid로 구분, 없으면 name fallback (하위 호환)
+    const key = uuid || name;
+    const existing = this._records.find(r => (r.uuid || r.name) === key);
     if (existing) {
       if (score > existing.score) {
         existing.score = score;
         existing.kills = kills;
         existing.team = team;
+        existing.name = name; // 닉네임 변경 반영
         existing.className = className;
         existing.timestamp = Date.now();
+        if (uuid) existing.uuid = uuid;
         this._scheduleSave();
       }
     } else {
-      this._records.push({ name, team, score, kills, className, timestamp: Date.now() });
+      const record = { name, team, score, kills, className, timestamp: Date.now() };
+      if (uuid) record.uuid = uuid;
+      this._records.push(record);
       this._scheduleSave();
     }
 
