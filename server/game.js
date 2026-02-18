@@ -136,6 +136,12 @@ class Game {
     const now = Date.now();
     this.events = [];
 
+    // [진단] dt 클램프 — 비정상 dt로 인한 연쇄 사망/텔레포트 방지
+    if (dt > 0.25) {
+      console.warn(`[DIAG] Game.update dt clamped: ${(dt * 1000).toFixed(0)}ms → 250ms`);
+      dt = 0.25;
+    }
+
     // Spatial Hash 재구축 (매 틱) — _shType 태그로 엔티티 유형 식별
     this.spatialHash.clear();
     for (const p of this.players.values()) {
@@ -269,6 +275,8 @@ class Game {
             if (p.hp <= 0) {
               p.hp = 0; p.alive = false; p.deaths++;
               p.respawnTimer = C.PLAYER_RESPAWN_DELAY;
+              if (!p.isBot) console.log(`[DIAG] Death: ${p.name} killed by SpawnZone(${team})`);
+
               p.xp = Math.floor(p.xp * (1 - C.XP_LOSS_ON_DEATH));
               this.events.push({ type: 'spawn_kill', victim: p.name });
             }
@@ -289,12 +297,21 @@ class Game {
         // 캐패시터/인덕터/트랜스포머: 오비탈 회전 공격 + 보호막
         this._updateOrbitals(p, dt, now);
         this._updateShield(p, dt);
-        // 인덕터: 자기장 인력
+        // 인덕터: 자기장 인력 + 플럭스 차지 + 코일 아크
         if (cls.magneticPull) {
           this._applyMagneticPull(p, dt);
         }
-        // 트랜스포머: 아군 버프 오라
-        if (cls.aura) {
+        if (cls.fluxMaxCharge) {
+          this._updateFluxCharge(p, dt, now);
+        }
+        if (cls.coilArcDps) {
+          this._updateCoilArc(p, dt, now);
+        }
+        // 트랜스포머: 전압 모드 스왑 + 아군 버프 오라 (stepDown만)
+        if (cls.voltageMax) {
+          this._updateTransformerVoltage(p, dt, now);
+        }
+        if (cls.aura && p.transformerMode === 'stepDown') {
           this._applyTransformerAura(p, dt);
         }
       } else {
@@ -451,9 +468,19 @@ class Game {
     const cls = p.getClassConfig();
     const orbCount = cls.orbCount || 3;
     const orbRadius = cls.orbRadius || 90;
-    const orbSpeed = cls.orbSpeed || 2.8;
     const orbSize = cls.orbSize || 14;
-    const hitCooldown = cls.orbHitCooldown || 700;
+
+    // 인덕터 플럭스 버스트: hitCooldown 감소
+    let hitCooldown = cls.orbHitCooldown || 700;
+    if (p.fluxBursting && cls.fluxBurstHitCd) {
+      hitCooldown = cls.fluxBurstHitCd;
+    }
+    // 트랜스포머 승압 모드: hitCooldown + orbSpeed 오버라이드
+    let orbSpeed = cls.orbSpeed || 2.8;
+    if (p.transformerMode === 'stepUp' && cls.stepUpHitCd) {
+      hitCooldown = cls.stepUpHitCd;
+      orbSpeed = cls.stepUpOrbSpeed || orbSpeed;
+    }
 
     // 회전 진행
     p.orbAngle += orbSpeed * dt;
@@ -470,7 +497,12 @@ class Game {
     const marketBuff = this._getMarketBuff(p.team);
     const eventDmgBoost = this._getEventZoneEffect(p, 'damage_boost');
     const transformerBoost = this._getTransformerAuraDmg(p);
-    const damage = p.getAttackDamage() * (1 + dmgBuff) * (1 + marketBuff.damageModifier) * (1 + eventDmgBoost) * (1 + transformerBoost);
+    // 트랜스포머 승압 모드: 공격력 오버라이드
+    let baseDmg = p.getAttackDamage();
+    if (p.transformerMode === 'stepUp' && cls.stepUpDamage) {
+      baseDmg = cls.stepUpDamage * (1 + C.LEVEL_GROWTH.damage * (p.level - 1)) * p.dmgMultiplier;
+    }
+    const damage = baseDmg * (1 + dmgBuff) * (1 + marketBuff.damageModifier) * (1 + eventDmgBoost) * (1 + transformerBoost);
 
     // 각 오브 위치 계산 및 충돌 체크
     for (let i = 0; i < orbCount; i++) {
@@ -494,6 +526,7 @@ class Game {
           p.orbHitTimers[entity.id] = now;
           const armorBuff = this._getTeamBuffValue(entity.team, 'armor');
           this._applyDamageToPlayer(entity, damage * (1 - armorBuff), p);
+          this._onOrbHit(p, cls, now); // 플럭스/전압 축적
         } else if (eType === 'minion') {
           if (entity.team === p.team) continue;
           p.orbHitTimers[entity.id] = now;
@@ -507,6 +540,7 @@ class Game {
           entity.hp -= damage;
           entity.lastHitTeam = p.team;
           this._trackDamage(entity, p.id, damage);
+          this._onOrbHit(p, cls, now);
           if (entity.hp <= 0) {
             entity.alive = false;
             this._onMonsterKill(entity, p.team, p.id);
@@ -618,6 +652,18 @@ class Game {
 
     if (damage <= 0) return;
 
+    // 인덕터: 피격 시 플럭스 축적
+    const tCls = C.CLASSES[target.className];
+    if (tCls && tCls.fluxGainOnDamaged && !target.fluxBursting && target.fluxCooldownTimer <= 0) {
+      target.fluxCharge = Math.min(tCls.fluxMaxCharge, target.fluxCharge + tCls.fluxGainOnDamaged);
+      target.lastCombatTime = Date.now();
+    }
+    // 트랜스포머: 피격 시 전압 축적 (stepDown + 쿨다운 후)
+    if (tCls && tCls.voltageGainOnDamaged && target.transformerMode === 'stepDown' && target.voltageCooldownTimer <= 0) {
+      target.voltage = Math.min(tCls.voltageMax, target.voltage + tCls.voltageGainOnDamaged);
+      target.lastCombatTime = Date.now();
+    }
+
     // 데미지 기여 추적 (어시스트 시스템)
     if (attacker) {
       this._trackDamage(target, attacker.id, damage);
@@ -628,6 +674,12 @@ class Game {
       target.hp = 0; target.alive = false; target.deaths++;
       target.respawnTimer = C.PLAYER_RESPAWN_DELAY;
       target.xp = Math.floor(target.xp * (1 - C.XP_LOSS_ON_DEATH));
+
+      // [진단] 사망 로그
+      const killerName = attacker ? attacker.name : (source && source.typeName) || (typeof source === 'string' ? source : 'unknown');
+      if (!target.isBot) {
+        console.log(`[DIAG] Death: ${target.name} killed by ${killerName} (pos: ${Math.round(target.x)},${Math.round(target.y)})`);
+      }
 
       // 킬러 팀 파악 (attacker, source, 또는 기여 기록에서)
       const killerTeam = attacker ? attacker.team : (source && source.team) || null;
@@ -2380,6 +2432,7 @@ class Game {
     const regen = cls.auraRegen || 2;
 
     // 범위 내 아군에게 즉시 효과 적용 (버프 아님, 실시간 효과)
+    let healedAlly = false;
     for (const ally of this.players.values()) {
       if (!ally.alive || ally.team !== p.team || ally.id === p.id) continue;
       const dist = this._dist(p, ally);
@@ -2387,9 +2440,15 @@ class Game {
         // HP 리젠
         if (ally.hp < ally.maxHp) {
           ally.hp = Math.min(ally.maxHp, ally.hp + regen * dt);
+          healedAlly = true;
         }
         // 데미지 부스트는 실시간 적용 (현재는 시각 표시만, 실제 데미지는 _getTransformerAuraDmg에서 계산)
       }
+    }
+    // 오라 힐이 실제로 발생 → 전압 축적
+    if (healedAlly && cls.voltageGainOnAuraHeal && p.transformerMode === 'stepDown' && p.voltageCooldownTimer <= 0) {
+      p.voltage = Math.min(cls.voltageMax, p.voltage + cls.voltageGainOnAuraHeal * dt);
+      p.lastCombatTime = Date.now();
     }
   }
 
@@ -2399,7 +2458,8 @@ class Game {
     for (const ally of this.players.values()) {
       if (!ally.alive || ally.team !== player.team) continue;
       const cls = ally.getClassConfig();
-      if (cls.aura) {
+      // stepUp 모드에서는 오라 비활성
+      if (cls.aura && ally.transformerMode !== 'stepUp') {
         const dist = this._dist(player, ally);
         if (dist <= (cls.auraRange || 200)) {
           boost = Math.max(boost, cls.auraDmgBoost || 0.15);
@@ -2452,6 +2512,151 @@ class Game {
         p.burstState.inBurst = true;
         p.burstState.shotsFired = 0;
         p.burstState.burstDelay = 0;
+      }
+    }
+  }
+
+  // ── 오브 적중 시 플럭스/전압 축적 콜백 ──
+  _onOrbHit(p, cls, now) {
+    // 인덕터: 플럭스 축적
+    if (cls.fluxGainOnHit && !p.fluxBursting && p.fluxCooldownTimer <= 0) {
+      p.fluxCharge = Math.min(cls.fluxMaxCharge, p.fluxCharge + cls.fluxGainOnHit);
+      p.lastCombatTime = now;
+    }
+    // 트랜스포머: 전압 축적 (stepDown에서만)
+    if (cls.voltageGainOnHit && p.transformerMode === 'stepDown' && p.voltageCooldownTimer <= 0) {
+      p.voltage = Math.min(cls.voltageMax, p.voltage + cls.voltageGainOnHit);
+      p.lastCombatTime = now;
+    }
+  }
+
+  // ── 인덕터: 플럭스 차지 시스템 ──
+  _updateFluxCharge(p, dt, now) {
+    const cls = p.getClassConfig();
+
+    // 쿨다운 타이머 감소
+    if (p.fluxCooldownTimer > 0) {
+      p.fluxCooldownTimer -= dt;
+      return;
+    }
+
+    if (p.fluxBursting) {
+      // 버스트 진행 중 → 타이머 감소
+      p.fluxBurstTimer -= dt;
+      if (p.fluxBurstTimer <= 0) {
+        // 버스트 종료
+        p.fluxBursting = false;
+        p.fluxBurstTimer = 0;
+        p.fluxCooldownTimer = cls.fluxBurstCooldown || 5.0;
+      }
+    } else {
+      // 이동 중이면 플럭스 자연 축적
+      const { up, down, left, right } = p.input;
+      if (up || down || left || right) {
+        p.fluxCharge = Math.min(cls.fluxMaxCharge, p.fluxCharge + (cls.fluxGainPerSec || 0.5) * dt);
+      }
+
+      // 최대 도달 → 자동 버스트 발동
+      if (p.fluxCharge >= cls.fluxMaxCharge) {
+        p.fluxBursting = true;
+        p.fluxBurstTimer = cls.fluxBurstDuration || 2.5;
+        p.fluxCharge = 0;
+        this.events.push({ type: 'flux_burst', playerId: p.id, name: p.name });
+      }
+    }
+  }
+
+  // ── 인덕터: 코일 아크 (오브 2개가 적 근처에 모이면 전기 아크) ──
+  _updateCoilArc(p, dt, now) {
+    const cls = p.getClassConfig();
+    const arcRange = cls.coilArcRange || 130;
+    const arcDps = cls.coilArcDps || 12;
+    const arcTickMs = cls.coilArcTickInterval || 250;
+    const orbCount = cls.orbCount || 4;
+    const orbRadius = cls.orbRadius || 110;
+
+    // 각 오브의 현재 위치 계산
+    const orbPositions = [];
+    for (let i = 0; i < orbCount; i++) {
+      const angle = p.orbAngle + (Math.PI * 2 / orbCount) * i;
+      orbPositions.push({
+        x: p.x + Math.cos(angle) * orbRadius,
+        y: p.y + Math.sin(angle) * orbRadius,
+      });
+    }
+
+    // 만료된 아크 타이머 정리
+    for (const tid of Object.keys(p.coilArcTimers)) {
+      if (now - p.coilArcTimers[tid] > arcTickMs * 2) {
+        delete p.coilArcTimers[tid];
+      }
+    }
+
+    const arcDamage = arcDps * (arcTickMs / 1000);
+
+    // 적 플레이어에 대해 아크 체크
+    for (const enemy of this.players.values()) {
+      if (!enemy.alive || enemy.team === p.team || enemy.id === p.id) continue;
+      if (enemy.invulnTimer > 0) continue;
+
+      // 이 적 근처에 오브가 몇 개 있는지 카운트
+      let orbsNearby = 0;
+      for (const orb of orbPositions) {
+        const dx = orb.x - enemy.x, dy = orb.y - enemy.y;
+        if (dx * dx + dy * dy <= arcRange * arcRange) {
+          orbsNearby++;
+        }
+      }
+
+      // 오브 2개 이상이 범위 내 → 아크 데미지
+      if (orbsNearby >= 2) {
+        if (!p.coilArcTimers[enemy.id] || now - p.coilArcTimers[enemy.id] >= arcTickMs) {
+          p.coilArcTimers[enemy.id] = now;
+          this._applyDamageToPlayer(enemy, arcDamage, p);
+        }
+      }
+    }
+  }
+
+  // ── 트랜스포머: 전압 모드 스왑 (나르 스타일) ──
+  _updateTransformerVoltage(p, dt, now) {
+    const cls = p.getClassConfig();
+
+    // 쿨다운 타이머 감소
+    if (p.voltageCooldownTimer > 0) {
+      p.voltageCooldownTimer -= dt;
+      return;
+    }
+
+    if (p.transformerMode === 'stepUp') {
+      // 승압 모드 진행 중 → 타이머 감소
+      p.stepUpTimer -= dt;
+      if (p.stepUpTimer <= 0) {
+        // 승압 종료 → 강압 복귀
+        p.transformerMode = 'stepDown';
+        p.stepUpTimer = 0;
+        p.voltage = 0;
+        p.voltageCooldownTimer = cls.stepUpCooldown || 8.0;
+        // 보호막 상한 복원 (초과분 잘라냄)
+        p.maxShield = Math.round((cls.shieldMax || 100) * (1 + C.LEVEL_GROWTH.hp * (p.level - 1)));
+        this.events.push({ type: 'transformer_revert', playerId: p.id, name: p.name });
+      }
+    } else {
+      // stepDown: 비전투 시 전압 자연 감소
+      const idleTime = (now - p.lastCombatTime) / 1000;
+      if (idleTime > (cls.voltageDecayDelay || 4.0) && p.voltage > 0) {
+        p.voltage = Math.max(0, p.voltage - (cls.voltageDecayRate || 2) * dt);
+      }
+
+      // 전압 최대 도달 → 자동 승압 변신
+      if (p.voltage >= (cls.voltageMax || 100)) {
+        p.transformerMode = 'stepUp';
+        p.stepUpTimer = cls.stepUpDuration || 6.0;
+        p.voltage = cls.voltageMax;
+        // 보호막 상한 축소
+        p.maxShield = Math.round((cls.stepUpShieldMax || 50) * (1 + C.LEVEL_GROWTH.hp * (p.level - 1)));
+        if (p.shield > p.maxShield) p.shield = p.maxShield;
+        this.events.push({ type: 'transformer_stepup', playerId: p.id, name: p.name });
       }
     }
   }

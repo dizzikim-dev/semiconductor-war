@@ -110,11 +110,23 @@ const CLASSES = {
     magneticPull: true,
     magneticRange: 150,     // 180→150 너프 — 인력 범위 축소
     magneticForce: 24,      // 32→24 너프 (-25%) — 도주 가능성 대폭 증가
+    // Flux Charge: 전투 중 축적 → 과부하 버스트
+    fluxMaxCharge: 10,          // 최대 플럭스 스택
+    fluxGainOnHit: 1,           // 오브 적중 시 +1
+    fluxGainOnDamaged: 2,       // 피격 시 +2
+    fluxGainPerSec: 0.5,        // 이동 중 초당 +0.5
+    fluxBurstDuration: 2.5,     // 버스트 지속 시간(초)
+    fluxBurstHitCd: 450,        // 버스트 중 orbHitCooldown (750→450)
+    fluxBurstCooldown: 5.0,     // 버스트 후 재충전 대기(초)
+    // Coil Arc: 오브 2개가 적 근처에 모이면 전기 아크 틱 데미지
+    coilArcRange: 130,          // 오브↔적 거리 기준
+    coilArcDps: 12,             // 초당 아크 데미지
+    coilArcTickInterval: 250,   // 아크 틱 간격(ms)
     shieldMax: 60,
     shieldRechargeDelay: 6000,
     shieldRechargeRate: 15,
     evolvesFrom: 'capacitor',
-    description: '자기장 조작 — 광역 탱커 (4궤도 + 자기 인력)',
+    description: '자기장 조작 — 광역 탱커 (4궤도 + 자기 인력 + 플럭스 버스트 + 코일 아크)',
   },
   transformer: {
     name: 'TRANSFORMER',
@@ -133,16 +145,29 @@ const CLASSES = {
     orbSize: 12,
     orbHitCooldown: 700,    // CAPACITOR와 동일 (800→700 복원)
     cellDmgBonus: 0.15,
-    // Support aura: allies within range get buffs
+    // Support aura: allies within range get buffs (stepDown 모드에서만 활성)
     aura: true,
     auraRange: 200,
     auraDmgBoost: 0.15,    // +15% damage to nearby allies
     auraRegen: 1.5,         // 2.5→1.5 너프 (-40%) — 자가힐 과강 조정
+    // Voltage Mode Swap (나르 스타일 자동 변신)
+    voltageMax: 100,            // 최대 전압 게이지
+    voltageGainOnHit: 8,        // 오브 적중 시 +8
+    voltageGainOnDamaged: 5,    // 피격 시 +5
+    voltageGainOnAuraHeal: 3,   // 오라 힐 tick당 +3
+    voltageDecayRate: 2,        // 비전투 시 초당 감소
+    voltageDecayDelay: 4.0,     // 마지막 전투 후 감소 시작 딜레이(초)
+    stepUpDuration: 6.0,        // 승압 모드 지속(초)
+    stepUpCooldown: 8.0,        // 승압→강압 복귀 후 전압 축적 쿨다운(초)
+    stepUpDamage: 24,           // 승압 모드 공격력 (15→24, +60%)
+    stepUpHitCd: 450,           // 승압 모드 orbHitCooldown (700→450)
+    stepUpShieldMax: 50,        // 승압 모드 보호막 상한 (100→50)
+    stepUpOrbSpeed: 4.0,        // 승압 모드 오브 속도 (3.0→4.0)
     shieldMax: 100,
     shieldRechargeDelay: 4000,
     shieldRechargeRate: 25,
     evolvesFrom: 'capacitor',
-    description: '에너지 변환 — 서포터 (아군 버프 오라 + 강화 보호막)',
+    description: '에너지 변환 — 서포터/딜러 전환 (오라 + 전압 변신)',
   },
   oscillator: {
     name: 'OSCILLATOR',

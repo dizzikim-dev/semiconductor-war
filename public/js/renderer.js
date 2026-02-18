@@ -163,6 +163,11 @@ const Renderer = (() => {
     if (typeof Tooltips !== 'undefined') {
       Tooltips.update(state, myId, camera, canvas, ctx);
     }
+
+    // Monster speech bubbles
+    if (typeof Speech !== 'undefined') {
+      Speech.update(state, myId, camera, canvas, ctx);
+    }
   };
 
   // ═══════════════════════════════════════════
@@ -1608,7 +1613,19 @@ const Renderer = (() => {
         }
       } else if (p.className === 'inductor') {
         // 인덕터: 육각형 (자기장 탱커) + 보라색 오브
-        ctx.fillStyle = color;
+        const isBursting = p.fluxBursting;
+
+        // 버스트 시 바디 글로우
+        if (isBursting) {
+          ctx.globalAlpha = 0.25 + Math.sin(Date.now() / 80) * 0.15;
+          ctx.fillStyle = '#e879f9';
+          ctx.beginPath();
+          ctx.arc(0, 0, p.radius + 14, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = isBursting ? '#c084fc' : color;
         ctx.beginPath();
         for (let i = 0; i < 6; i++) {
           const angle = (Math.PI / 3) * i;
@@ -1618,7 +1635,7 @@ const Renderer = (() => {
         }
         ctx.closePath();
         ctx.fill();
-        ctx.strokeStyle = isMe ? '#ffffff' : lightColor;
+        ctx.strokeStyle = isMe ? '#ffffff' : (isBursting ? '#e879f9' : lightColor);
         ctx.lineWidth = isMe ? 3 : 1.5;
         ctx.stroke();
 
@@ -1629,6 +1646,22 @@ const Renderer = (() => {
         ctx.beginPath();
         ctx.arc(0, 0, p.radius + 8, 0, Math.PI * 2);
         ctx.stroke();
+
+        // 플럭스 차지 게이지 (본체 아래)
+        if (p.fluxMax > 0 && !isBursting) {
+          const fluxRatio = (p.fluxCharge || 0) / p.fluxMax;
+          if (fluxRatio > 0) {
+            const gW = p.radius * 1.6;
+            const gH = 3;
+            const gY = p.radius + 12;
+            ctx.globalAlpha = 0.4;
+            ctx.fillStyle = '#1e1e2e';
+            ctx.fillRect(-gW / 2, gY, gW, gH);
+            ctx.globalAlpha = 0.8;
+            ctx.fillStyle = fluxRatio >= 0.8 ? '#e879f9' : '#a855f7';
+            ctx.fillRect(-gW / 2, gY, gW * fluxRatio, gH);
+          }
+        }
 
         // 보호막 + 오비탈 (캐패시터와 동일, 색상만 보라색)
         if (p.shield > 0 && p.maxShield > 0) {
@@ -1642,12 +1675,14 @@ const Renderer = (() => {
         }
 
         if (p.orbCount && p.orbRadius) {
-          const orbColor = lightColor;
+          const orbColor = isBursting ? '#e879f9' : lightColor;
+          const orbPositions = [];
           for (let i = 0; i < p.orbCount; i++) {
             const orbAngle = (p.orbAngle || 0) + (Math.PI * 2 / p.orbCount) * i;
             const oX = Math.cos(orbAngle) * p.orbRadius;
             const oY = Math.sin(orbAngle) * p.orbRadius;
-            ctx.globalAlpha = 0.7;
+            orbPositions.push({ x: oX, y: oY });
+            ctx.globalAlpha = isBursting ? 0.9 : 0.7;
             ctx.fillStyle = orbColor;
             ctx.beginPath();
             ctx.arc(oX, oY, (p.orbSize || 16), 0, Math.PI * 2);
@@ -1658,59 +1693,132 @@ const Renderer = (() => {
             ctx.arc(oX, oY, (p.orbSize || 16) * 2, 0, Math.PI * 2);
             ctx.fill();
           }
+
+          // 코일 아크: 오브 간 전기 연결선 (근처에 적이 있을 때)
+          // 클라이언트에서 간소화: 오브 사이에 항상 미세한 전기선을 그리되
+          // 적이 가까우면 더 밝게 표시
+          if (orbPositions.length >= 2) {
+            const arcAlpha = isBursting ? 0.6 : 0.15;
+            ctx.globalAlpha = arcAlpha;
+            ctx.strokeStyle = '#c084fc';
+            ctx.lineWidth = isBursting ? 2 : 1;
+            for (let i = 0; i < orbPositions.length; i++) {
+              const a = orbPositions[i];
+              const b = orbPositions[(i + 1) % orbPositions.length];
+              ctx.beginPath();
+              // 약간의 지그재그 (전기 아크 느낌)
+              const mx = (a.x + b.x) / 2 + (Math.random() - 0.5) * 8;
+              const my = (a.y + b.y) / 2 + (Math.random() - 0.5) * 8;
+              ctx.moveTo(a.x, a.y);
+              ctx.lineTo(mx, my);
+              ctx.lineTo(b.x, b.y);
+              ctx.stroke();
+            }
+          }
         }
       } else if (p.className === 'transformer') {
-        // 트랜스포머: 다이아몬드 (서포터) + 녹색 오라
-        ctx.fillStyle = color;
-        ctx.beginPath();
+        // 트랜스포머: 다이아몬드 — stepDown(서포터/녹색) ↔ stepUp(딜러/주황)
+        const isStepUp = p.transformerMode === 'stepUp';
+        const tfAccent = isStepUp ? '#f97316' : '#10b981'; // 주황 vs 녹색
+        const tfGlow = isStepUp ? '#fb923c' : '#34d399';
         const r = p.radius;
-        ctx.moveTo(0, -r);      // 위
-        ctx.lineTo(r, 0);        // 오른쪽
-        ctx.lineTo(0, r);        // 아래
-        ctx.lineTo(-r, 0);       // 왼쪽
+
+        // 승압 모드 외곽 글로우
+        if (isStepUp) {
+          ctx.globalAlpha = 0.2 + Math.sin(Date.now() / 100) * 0.12;
+          ctx.fillStyle = '#f97316';
+          ctx.beginPath();
+          ctx.arc(0, 0, r + 14, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // 바디: 다이아몬드 (승압 시 색상 변경)
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = isStepUp ? '#ea580c' : color;
+        ctx.beginPath();
+        ctx.moveTo(0, -r);
+        ctx.lineTo(r, 0);
+        ctx.lineTo(0, r);
+        ctx.lineTo(-r, 0);
         ctx.closePath();
         ctx.fill();
-        ctx.strokeStyle = isMe ? '#ffffff' : lightColor;
+        ctx.strokeStyle = isMe ? '#ffffff' : (isStepUp ? '#fb923c' : lightColor);
         ctx.lineWidth = isMe ? 3 : 1.5;
         ctx.stroke();
 
-        // 아군 버프 오라 표시
-        ctx.globalAlpha = 0.1;
-        ctx.fillStyle = accent;
-        ctx.beginPath();
-        ctx.arc(0, 0, p.radius * 2.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha = 0.3;
-        ctx.strokeStyle = accent;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(0, 0, p.radius * 2.5, 0, Math.PI * 2);
-        ctx.stroke();
+        // 모드 아이콘: ▲(승압) 또는 ▽(강압) 중앙에 표시
+        ctx.globalAlpha = 0.6;
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `${Math.round(r * 0.7)}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(isStepUp ? '\u25B2' : '\u25BD', 0, 0);
+
+        // 아군 버프 오라 (stepDown만)
+        if (!isStepUp) {
+          ctx.globalAlpha = 0.1;
+          ctx.fillStyle = tfAccent;
+          ctx.beginPath();
+          ctx.arc(0, 0, r * 2.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 0.3;
+          ctx.strokeStyle = tfAccent;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(0, 0, r * 2.5, 0, Math.PI * 2);
+          ctx.stroke();
+        } else {
+          // 승압 모드: 에너지 방출 링
+          ctx.globalAlpha = 0.25;
+          ctx.strokeStyle = '#f97316';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([6, 4]);
+          ctx.beginPath();
+          ctx.arc(0, 0, r + 8, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
+        // 전압 게이지 (본체 아래, stepDown에서만)
+        if (!isStepUp && p.voltageMax > 0) {
+          const vRatio = (p.voltage || 0) / p.voltageMax;
+          if (vRatio > 0) {
+            const gW = r * 1.6;
+            const gH = 3;
+            const gY = r + 12;
+            ctx.globalAlpha = 0.4;
+            ctx.fillStyle = '#1e1e2e';
+            ctx.fillRect(-gW / 2, gY, gW, gH);
+            ctx.globalAlpha = 0.8;
+            ctx.fillStyle = vRatio >= 0.8 ? '#f97316' : '#fb923c';
+            ctx.fillRect(-gW / 2, gY, gW * vRatio, gH);
+          }
+        }
 
         // 보호막 + 오비탈
         if (p.shield > 0 && p.maxShield > 0) {
           const shieldRatio = p.shield / p.maxShield;
           ctx.globalAlpha = 0.15 + shieldRatio * 0.2;
-          ctx.strokeStyle = '#10b981';
+          ctx.strokeStyle = tfGlow;
           ctx.lineWidth = 3;
           ctx.beginPath();
-          ctx.arc(0, 0, p.radius + 6, 0, Math.PI * 2);
+          ctx.arc(0, 0, r + 6, 0, Math.PI * 2);
           ctx.stroke();
         }
 
         if (p.orbCount && p.orbRadius) {
-          const orbColor = lightColor;
+          const orbColor = isStepUp ? '#fb923c' : lightColor;
           for (let i = 0; i < p.orbCount; i++) {
             const orbAngle = (p.orbAngle || 0) + (Math.PI * 2 / p.orbCount) * i;
             const oX = Math.cos(orbAngle) * p.orbRadius;
             const oY = Math.sin(orbAngle) * p.orbRadius;
-            ctx.globalAlpha = 0.7;
+            ctx.globalAlpha = isStepUp ? 0.9 : 0.7;
             ctx.fillStyle = orbColor;
             ctx.beginPath();
             ctx.arc(oX, oY, (p.orbSize || 12), 0, Math.PI * 2);
             ctx.fill();
-            ctx.globalAlpha = 0.2;
-            ctx.fillStyle = '#ffffff';
+            ctx.globalAlpha = isStepUp ? 0.3 : 0.2;
+            ctx.fillStyle = isStepUp ? '#f97316' : '#ffffff';
             ctx.beginPath();
             ctx.arc(oX, oY, (p.orbSize || 12) * 2, 0, Math.PI * 2);
             ctx.fill();

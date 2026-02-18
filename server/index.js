@@ -290,8 +290,8 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('disconnect', () => {
-    console.log(`[퇴장] ${socket.id}`);
+  socket.on('disconnect', (reason) => {
+    console.log(`[퇴장] ${socket.id} (reason: ${reason})`);
     chatService.removePlayer(socket.id);
 
     // 유저 데이터: 퇴장 시 통계 캡처
@@ -316,8 +316,9 @@ io.on('connection', (socket) => {
       // 모든 실제 플레이어가 나가면 게임 리셋
       const realPlayers = [...game.players.values()].filter(p => !p.isBot);
       if (realPlayers.length === 0) {
+        const uptime = ((Date.now() - game.gameStartTime) / 1000).toFixed(0);
+        console.log(`[DIAG] Game reset — all players left (uptime: ${uptime}s)`);
         game = null;
-        console.log('[Server] All players left, game reset');
       }
     } else {
       userDataStore.onPlayerDisconnect(socket.id, {});
@@ -332,6 +333,12 @@ setInterval(() => {
   const now = Date.now();
   const dt = (now - lastTick) / 1000;
   lastTick = now;
+
+  // [진단] dt 스파이크 감지 — 이벤트 루프 블로킹 또는 프로세스 일시정지 시 발생
+  if (dt > 0.5) {
+    console.warn(`[DIAG] dt spike: ${(dt * 1000).toFixed(0)}ms (expected ~${C.TICK_INTERVAL.toFixed(0)}ms)`);
+  }
+
   game.updateBots();
   game.update(dt);
 }, C.TICK_INTERVAL);

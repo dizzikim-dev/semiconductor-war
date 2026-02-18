@@ -49,6 +49,20 @@ class Player {
     this.maxShield = 0;
     this.shieldRechargeTimer = 0;   // 재충전 대기 타이머 (ms)
 
+    // ── 인덕터: 플럭스 차지 + 코일 아크 ──
+    this.fluxCharge = 0;            // 0 ~ fluxMaxCharge
+    this.fluxBursting = false;      // 버스트 활성 중
+    this.fluxBurstTimer = 0;        // 버스트 남은 시간(초)
+    this.fluxCooldownTimer = 0;     // 버스트 후 충전 쿨(초)
+    this.coilArcTimers = {};        // { targetId: lastArcTick } 아크 틱 방지
+
+    // ── 트랜스포머: 전압 모드 스왑 (나르) ──
+    this.voltage = 0;               // 0 ~ voltageMax
+    this.transformerMode = 'stepDown'; // 'stepDown' | 'stepUp'
+    this.stepUpTimer = 0;           // 승압 모드 남은 시간(초)
+    this.voltageCooldownTimer = 0;  // 복귀 후 전압 축적 쿨(초)
+    this.lastCombatTime = 0;        // 마지막 전투 시각(ms) — 전압 자연 감소 판단
+
     // ── 시한 버프 (Timed Buffs) ──
     // 각 항목: { id, type, label, value, remaining, duration, color, icon }
     this.activeBuffs = [];
@@ -164,6 +178,10 @@ class Player {
   }
 
   respawn() {
+    // [진단] 리스폰 로그 (실제 플레이어만)
+    if (!this.isBot) {
+      console.log(`[DIAG] Respawn: ${this.name} → spawn(${Math.round(this.spawnPoint.x)},${Math.round(this.spawnPoint.y)})`);
+    }
     this._spawnAt(this.spawnPoint);
     this._applyClassStats();
     this.hp = this.maxHp;
@@ -178,6 +196,18 @@ class Player {
     this.activeBuffs = [];
     this.lastKilledBy = null;
     this.damageContributors = {};
+    // 인덕터 리셋
+    this.fluxCharge = 0;
+    this.fluxBursting = false;
+    this.fluxBurstTimer = 0;
+    this.fluxCooldownTimer = 0;
+    this.coilArcTimers = {};
+    // 트랜스포머 리셋
+    this.voltage = 0;
+    this.transformerMode = 'stepDown';
+    this.stepUpTimer = 0;
+    this.voltageCooldownTimer = 0;
+    this.lastCombatTime = 0;
     // revengeTargetId는 유지 (리스폰 후에도 복수 가능)
     // 레벨/XP는 유지, 사망 시 XP 감소는 game.js에서 처리
   }
@@ -210,6 +240,18 @@ class Player {
       data.orbSize = cls.orbSize;
       data.shield = Math.round(this.shield);
       data.maxShield = this.maxShield;
+    }
+    // 인덕터: 플럭스 차지 + 코일 아크 상태
+    if (this.className === 'inductor') {
+      data.fluxCharge = +(this.fluxCharge).toFixed(1);
+      data.fluxMax = cls.fluxMaxCharge || 10;
+      data.fluxBursting = this.fluxBursting;
+    }
+    // 트랜스포머: 전압 + 모드
+    if (this.className === 'transformer') {
+      data.voltage = Math.round(this.voltage);
+      data.voltageMax = cls.voltageMax || 100;
+      data.transformerMode = this.transformerMode;
     }
     // 시한 버프 목록
     if (this.activeBuffs.length > 0) {
