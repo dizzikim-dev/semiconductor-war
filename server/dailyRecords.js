@@ -3,7 +3,9 @@
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
+// Render Persistent Disk: PERSISTENT_DATA_DIR 환경변수로 마운트 경로 지정
+// 로컬 개발: 미설정 시 프로젝트 루트의 data/ 사용
+const DATA_DIR = process.env.PERSISTENT_DATA_DIR || path.join(__dirname, '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'daily-records.json');
 const SAVE_DEBOUNCE_MS = 3000;
 const MAX_RECORDS = 50;
