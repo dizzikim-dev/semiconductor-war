@@ -536,6 +536,13 @@
         </div>
       </div>
 
+      <!-- Today's Top Players -->
+      <div class="card">
+        <h2>Today's Top Players</h2>
+        <div id="dailyRecordsCount" style="font-size:0.75rem;color:#6b7a8d;margin-bottom:8px">0 players</div>
+        <div id="dailyRecordsList" style="max-height:300px;overflow-y:auto"><span class="empty">Loading...</span></div>
+      </div>
+
       <!-- Market Status -->
       <div class="card">
         <h2>Market Status</h2>
@@ -699,8 +706,12 @@
           <button class="btn btn-sm" onclick="showPreview('resistor')" style="background:#a0aec0;color:#000">Resistor</button>
           <button class="btn btn-sm" onclick="showPreview('capacitor')" style="background:#fbbf24;color:#000">Capacitor</button>
           <button class="btn btn-sm" onclick="showPreview('repeater')" style="background:#34d399;color:#000">Repeater</button>
+          <button class="btn btn-sm" onclick="showPreview('inductor')" style="background:#a855f7;color:#fff">Inductor</button>
+          <button class="btn btn-sm" onclick="showPreview('transformer')" style="background:#10b981;color:#000">Transformer</button>
+          <button class="btn btn-sm" onclick="showPreview('oscillator')" style="background:#06b6d4;color:#000">Oscillator</button>
+          <button class="btn btn-sm" onclick="showPreview('amplifier')" style="background:#ef4444;color:#fff">Amplifier</button>
         </div>
-        <canvas id="previewCanvas" width="900" height="400" style="width:100%;background:#0d1117;border:1px solid #2a3a4e;border-radius:4px"></canvas>
+        <canvas id="previewCanvas" width="1200" height="600" style="width:100%;background:#0d1117;border:1px solid #2a3a4e;border-radius:4px"></canvas>
         <div id="previewInfo" style="margin-top:8px;font-size:0.8rem;color:#6b7a8d"></div>
       </div>
 
@@ -811,6 +822,7 @@
 
     function refreshAll() {
       refreshGameStatus();
+      refreshDailyRecords();
       refreshMarketStatus();
       refreshProviderStatus();
       refreshComplianceCheck();
@@ -819,6 +831,32 @@
       refreshChat();
       refreshUserStats();
       searchUsers();
+    }
+
+    // Daily Records
+    function refreshDailyRecords() {
+      api('GET', '/api/admin/daily-records').then(data => {
+        const el = document.getElementById('dailyRecordsList');
+        const countEl = document.getElementById('dailyRecordsCount');
+        const records = data.records || [];
+        countEl.textContent = `${records.length} players`;
+        if (records.length === 0) {
+          el.innerHTML = '<span class="empty">No records today</span>';
+          return;
+        }
+        el.innerHTML = records.map(r => {
+          const teamColor = r.team === 'samsung' ? '#5a9bff' : '#ff6b80';
+          const rankColor = r.rank <= 3 ? (r.rank === 1 ? '#ffd700' : r.rank === 2 ? '#c8c8c8' : '#cd7f32') : '#6b7a8d';
+          const bg = r.rank === 1 ? 'rgba(255,215,0,0.06)' : r.rank === 2 ? 'rgba(200,200,200,0.04)' : r.rank === 3 ? 'rgba(205,127,50,0.04)' : 'rgba(10,10,20,0.4)';
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 6px;background:${bg};border-radius:3px;font-size:0.8rem">
+            <span style="color:${rankColor};width:24px;font-weight:${r.rank<=3?'bold':'normal'}">#${r.rank}</span>
+            <span style="color:${teamColor};flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.name)}</span>
+            <span style="color:#6b7a8d;width:20px;text-align:center;font-size:0.7rem">${(r.className || '').charAt(0).toUpperCase()}</span>
+            <span style="color:#e0e6ed;width:50px;text-align:right">${r.score}</span>
+            <span style="color:#ff6b6b;width:30px;text-align:right">${r.kills}K</span>
+          </div>`;
+        }).join('');
+      }).catch(() => {});
     }
 
     // Market Status
@@ -1452,9 +1490,13 @@
       { name:'META', style:'twin', color:'#0668e1', dmg:10, cd:1200, hp:450, buff:'ARMOR +20%' },
     ];
     const CLASSES = [
-      { name:'resistor', color:'#a0aec0', style:'single', dmg:10, cd:350, range:280, speed:500, hp:120, desc:'Single shot projectile' },
-      { name:'capacitor', color:'#fbbf24', style:'orbit', dmg:25, cd:0, range:90, orbCount:3, hp:250, shield:80, desc:'3 orbital orbs + shield' },
-      { name:'repeater', color:'#34d399', style:'single', dmg:7, cd:200, range:280, speed:600, hp:90, desc:'Fast dual projectiles' },
+      { name:'resistor', color:'#a0aec0', style:'single', dmg:10, cd:350, range:280, speed:500, hp:120, tier:1, desc:'Single shot projectile' },
+      { name:'capacitor', color:'#fbbf24', style:'orbit', dmg:18, cd:0, range:90, orbCount:3, hp:250, shield:80, tier:2, desc:'3 orbital orbs + shield' },
+      { name:'repeater', color:'#34d399', style:'single', dmg:7, cd:150, range:280, speed:700, hp:110, tier:2, desc:'Fast single shots (CD 150ms)' },
+      { name:'inductor', color:'#a855f7', style:'orbit', dmg:17, cd:0, range:110, orbCount:4, hp:280, shield:60, tier:3, magneticPull:true, desc:'4 orbs + magnetic pull' },
+      { name:'transformer', color:'#10b981', style:'orbit', dmg:15, cd:0, range:80, orbCount:3, hp:300, shield:100, tier:3, aura:true, desc:'3 orbs + aura (DMG+15%/regen)' },
+      { name:'oscillator', color:'#06b6d4', style:'single', dmg:7, cd:200, range:280, speed:700, hp:130, tier:3, multiShot:3, desc:'REPEATER + 3-way spread shots' },
+      { name:'amplifier', color:'#ef4444', style:'single', dmg:7, cd:200, range:400, speed:800, hp:130, tier:3, ampedEvery:4, desc:'REPEATER + amped every 4th shot' },
     ];
 
     let previewAnim = null;
@@ -1604,37 +1646,87 @@
             const aim = t * 0.6;
 
             if (data.style === 'orbit') {
-              // 캐패시터
+              // orbit classes: capacitor / inductor / transformer
               ctx.fillStyle = data.color; ctx.globalAlpha = 0.85;
               ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fill();
               // 보호막 링
-              ctx.globalAlpha = 0.3; ctx.strokeStyle = '#60a5fa'; ctx.lineWidth = 3;
-              ctx.beginPath(); ctx.arc(0, 0, r + 6, 0, Math.PI*2); ctx.stroke();
+              if (data.shield) {
+                ctx.globalAlpha = 0.3; ctx.strokeStyle = '#60a5fa'; ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.arc(0, 0, r + 6, 0, Math.PI*2); ctx.stroke();
+              }
+              // Aura ring (Transformer)
+              if (data.aura) {
+                ctx.globalAlpha = 0.12; ctx.strokeStyle = data.color; ctx.lineWidth = 2;
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath(); ctx.arc(0, 0, 60, 0, Math.PI*2); ctx.stroke();
+                ctx.setLineDash([]);
+                // Aura glow
+                ctx.globalAlpha = 0.06; ctx.fillStyle = data.color;
+                ctx.beginPath(); ctx.arc(0, 0, 60, 0, Math.PI*2); ctx.fill();
+              }
+              // Magnetic pull indicator (Inductor)
+              if (data.magneticPull) {
+                ctx.globalAlpha = 0.15; ctx.strokeStyle = data.color; ctx.lineWidth = 1.5;
+                for (let ring = 1; ring <= 3; ring++) {
+                  const rr = 30 + ring * 15;
+                  ctx.beginPath(); ctx.arc(0, 0, rr, -0.4 + t*2, 0.4 + t*2); ctx.stroke();
+                  ctx.beginPath(); ctx.arc(0, 0, rr, Math.PI - 0.4 + t*2, Math.PI + 0.4 + t*2); ctx.stroke();
+                }
+              }
               // 오비탈
               ctx.globalAlpha = 1;
               if (!orbitAngles[key]) orbitAngles[key] = 0;
-              orbitAngles[key] += 2.8 * dt;
-              for (let i = 0; i < (data.orbCount||3); i++) {
-                const oa = orbitAngles[key] + (Math.PI*2/3)*i;
-                const ox = Math.cos(oa) * (data.range||90);
-                const oy = Math.sin(oa) * (data.range||90);
+              const orbSpd = data.name === 'inductor' ? 2.2 : data.name === 'transformer' ? 3.0 : 2.8;
+              orbitAngles[key] += orbSpd * dt;
+              const orbCount = data.orbCount || 3;
+              const orbR = data.range || 90;
+              const orbSize = data.name === 'inductor' ? 10 : 8;
+              for (let i = 0; i < orbCount; i++) {
+                const oa = orbitAngles[key] + (Math.PI*2/orbCount)*i;
+                const ox = Math.cos(oa) * orbR;
+                const oy = Math.sin(oa) * orbR;
                 ctx.fillStyle = data.color;
-                ctx.beginPath(); ctx.arc(ox, oy, 8, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(ox, oy, orbSize, 0, Math.PI*2); ctx.fill();
                 ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
               }
             } else {
-              // resistor / repeater
+              // single-shot classes: resistor / repeater / oscillator / amplifier
               ctx.rotate(aim);
               ctx.fillStyle = data.color; ctx.globalAlpha = 0.85;
-              ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(-r*0.7, -r*0.7); ctx.lineTo(-r*0.7, r*0.7); ctx.closePath(); ctx.fill();
+              // Oscillator: wider triangle body
+              if (data.name === 'oscillator') {
+                ctx.beginPath(); ctx.moveTo(r*1.1, 0); ctx.lineTo(-r*0.6, -r*0.85); ctx.lineTo(-r*0.6, r*0.85); ctx.closePath(); ctx.fill();
+                // side barrel indicators
+                ctx.globalAlpha = 0.5;
+                ctx.fillRect(r*0.2, r*0.4, r*0.5, 3);
+                ctx.fillRect(r*0.2, -r*0.4-3, r*0.5, 3);
+              } else if (data.name === 'amplifier') {
+                // Amplifier: slightly bigger triangle + barrel
+                ctx.beginPath(); ctx.moveTo(r*1.2, 0); ctx.lineTo(-r*0.7, -r*0.75); ctx.lineTo(-r*0.7, r*0.75); ctx.closePath(); ctx.fill();
+                ctx.globalAlpha = 0.5;
+                ctx.fillRect(r*0.3, -2.5, r*0.7, 5);
+              } else {
+                ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(-r*0.7, -r*0.7); ctx.lineTo(-r*0.7, r*0.7); ctx.closePath(); ctx.fill();
+              }
               ctx.globalAlpha = 1;
 
+              if (!cooldowns[key+'_shotCount']) cooldowns[key+'_shotCount'] = 0;
               if (cooldowns[key] <= 0) {
                 cooldowns[key] = data.cd;
-                const bCount = data.name === 'repeater' ? 2 : 1;
-                for (let i = 0; i < bCount; i++) {
-                  const spread = bCount > 1 ? (i - 0.5) * 0.1 : 0;
-                  bullets.push({ x:cx, y:cy, angle:aim+spread, speed:data.speed||500, life:1.2, color:data.color, r:4 });
+                cooldowns[key+'_shotCount']++;
+
+                if (data.multiShot) {
+                  // Oscillator: 3-way spread
+                  const spread = 0.25;
+                  for (let i = 0; i < data.multiShot; i++) {
+                    const sa = aim + (i - (data.multiShot-1)/2) * spread;
+                    bullets.push({ x:cx, y:cy, angle:sa, speed:data.speed||500, life:1.2, color:data.color, r:3 });
+                  }
+                } else if (data.ampedEvery && cooldowns[key+'_shotCount'] % data.ampedEvery === 0) {
+                  // Amplifier: amped shot (bigger, brighter)
+                  bullets.push({ x:cx, y:cy, angle:aim, speed:data.speed||500, life:1.2, color:'#fbbf24', r:7 });
+                } else {
+                  bullets.push({ x:cx, y:cy, angle:aim, speed:data.speed||500, life:1.2, color:data.color, r:4 });
                 }
               }
             }
@@ -1646,7 +1738,8 @@
           ctx.font = 'bold 11px Orbitron';
           ctx.fillStyle = data.color;
           ctx.textAlign = 'center';
-          ctx.fillText(data.name.toUpperCase(), cx, cy - 42);
+          const tierLabel = data.tier ? ' (T' + data.tier + ')' : '';
+          ctx.fillText(data.name.toUpperCase() + tierLabel, cx, cy - 42);
           ctx.font = '9px Share Tech Mono';
           ctx.fillStyle = '#6b7a8d';
           if (type === 'boss') {
@@ -1654,7 +1747,8 @@
             ctx.fillText('HP ' + data.hp + ' | ' + data.buff, cx, cy + 54);
           } else {
             ctx.fillText(data.desc, cx, cy + 42);
-            ctx.fillText('HP ' + data.hp + ' | DMG ' + data.dmg + ' | CD ' + data.cd + 'ms', cx, cy + 54);
+            const shieldStr = data.shield ? ' | SH ' + data.shield : '';
+            ctx.fillText('HP ' + data.hp + shieldStr + ' | DMG ' + data.dmg + ' | CD ' + data.cd + 'ms', cx, cy + 54);
           }
         }
 
@@ -1714,10 +1808,10 @@
     let btLastTime = 0;
     let btWinner = null;
 
-    // CLASS_COLORS for player classes
+    // CLASS_COLORS for player classes (must match renderer.js)
     const BT_CLASS_COLORS = {
       resistor: '#a0aec0', capacitor: '#fbbf24', repeater: '#34d399',
-      inductor: '#818cf8', transformer: '#f472b6', oscillator: '#38bdf8', amplifier: '#fb923c',
+      inductor: '#a855f7', transformer: '#10b981', oscillator: '#06b6d4', amplifier: '#ef4444',
     };
 
     // ── Fetch balance data ──
@@ -1776,6 +1870,18 @@
         // amplifier distance scaling
         distanceDmgScale: cls.distanceDmgScale || false,
         maxDmgMultiplier: cls.maxDmgMultiplier || 1,
+        // oscillator multi-shot
+        multiShot: cls.multiShot || 0,
+        spreadAngle: cls.spreadAngle || 0,
+        // amplifier amped shots
+        ampedEvery: cls.ampedEvery || 0,
+        ampedDmgMultiplier: cls.ampedDmgMultiplier || 3,
+        ampedBulletRadius: cls.ampedBulletRadius || 6,
+        // transformer aura
+        aura: cls.aura || false,
+        auraRange: cls.auraRange || 0,
+        auraDmgBoost: cls.auraDmgBoost || 0,
+        auraRegen: cls.auraRegen || 0,
         // shield
         shield: cls.shieldMax || 0,
         maxShield: cls.shieldMax || 0,
@@ -2023,6 +2129,25 @@
         }
       }
 
+      // Movement: all mobile entities move toward target when out of effective range
+      const moveSpeed = entity.speed || 0;
+      if (moveSpeed > 0) {
+        let effectiveRange;
+        if (entity.attackType === 'orbit') {
+          effectiveRange = (entity.orbRadius || 90) + (entity.orbSize || 10);
+        } else if (entity.attackType === 'melee') {
+          effectiveRange = (entity.attackRange || 30) + target.radius;
+        } else {
+          effectiveRange = (entity.attackRange || 280) * 0.8; // move until 80% of range for some breathing room
+        }
+        if (dist > effectiveRange) {
+          entity.x += Math.cos(angle) * moveSpeed * dt;
+          entity.y += Math.sin(angle) * moveSpeed * dt;
+          entity.x = Math.max(30, Math.min(870, entity.x));
+          entity.y = Math.max(30, Math.min(420, entity.y));
+        }
+      }
+
       // Magnetic pull (Inductor)
       if (entity.magneticPull && dist <= entity.magneticRange && dist > entity.orbRadius) {
         const pullStr = entity.magneticForce * dt;
@@ -2061,11 +2186,6 @@
             entity.fireCooldown = entity.attackCooldown;
             btApplyDamage(target, entity.dmg, entity);
           }
-        }
-        // Move toward target
-        if (dist > (entity.attackRange || 30) + target.radius && entity.speed > 0) {
-          entity.x += Math.cos(angle) * entity.speed * dt;
-          entity.y += Math.sin(angle) * entity.speed * dt;
         }
         return;
       }
@@ -2175,13 +2295,41 @@
 
       if (entity.fireCooldown <= 0) {
         entity.fireCooldown = entity.attackCooldown;
-        const bCount = entity.className === 'repeater' ? 2 : 1;
-        for (let i = 0; i < bCount; i++) {
-          const spread = bCount > 1 ? (i - 0.5) * 0.08 : 0;
+        const owner = entity === btPlayer ? 'player' : 'enemy';
+
+        // Track shot count for ampedEvery
+        if (!entity._shotCount) entity._shotCount = 0;
+        entity._shotCount++;
+
+        // Oscillator: multiShot spread
+        if (entity.multiShot && entity.multiShot > 1) {
+          const spreadA = entity.spreadAngle || 0.25;
+          for (let i = 0; i < entity.multiShot; i++) {
+            const sa = angle + (i - (entity.multiShot - 1) / 2) * spreadA;
+            btBullets.push({
+              x: entity.x, y: entity.y, angle: sa, speed: entity.bulletSpeed || 500,
+              radius: entity.bulletRadius || 3, dmg: entity.dmg, life: 1.5,
+              color: entity.color, owner,
+              originX: entity.x, originY: entity.y,
+            });
+          }
+        }
+        // Amplifier: amped shot every N-th
+        else if (entity.ampedEvery && entity._shotCount % entity.ampedEvery === 0) {
+          const ampDmg = entity.dmg * (entity.ampedDmgMultiplier || 3);
           btBullets.push({
-            x: entity.x, y: entity.y, angle: angle + spread, speed: entity.bulletSpeed || 500,
+            x: entity.x, y: entity.y, angle, speed: entity.bulletSpeed || 500,
+            radius: entity.ampedBulletRadius || 6, dmg: ampDmg, life: 1.5,
+            color: '#fbbf24', owner,
+            originX: entity.x, originY: entity.y,
+          });
+        }
+        // Normal single shot
+        else {
+          btBullets.push({
+            x: entity.x, y: entity.y, angle, speed: entity.bulletSpeed || 500,
             radius: entity.bulletRadius || 4, dmg: entity.dmg, life: 1.5,
-            color: entity.color, owner: 'player',
+            color: entity.color, owner,
             originX: entity.x, originY: entity.y,
             distScale: entity.distanceDmgScale, maxDmgMul: entity.maxDmgMultiplier,
           });
@@ -2196,6 +2344,13 @@
       const dt = Math.min((now - btLastTime) / 1000, 0.1);
       btLastTime = now;
       btElapsed += dt;
+
+      // Transformer aura self-regen
+      for (const ent of [btPlayer, btEnemy]) {
+        if (ent.alive && ent.aura && ent.auraRegen > 0) {
+          ent.hp = Math.min(ent.maxHp, ent.hp + ent.auraRegen * dt);
+        }
+      }
 
       // Update attacks
       if (btPlayer.alive && btEnemy.alive) {
@@ -2449,6 +2604,7 @@
         ctx.closePath(); ctx.fill();
       } else {
         // Player class
+        const aim = btEnemy && e === btPlayer ? Math.atan2(btEnemy.y - y, btEnemy.x - x) : (btPlayer ? Math.atan2(btPlayer.y - y, btPlayer.x - x) : 0);
         if (e.attackType === 'orbit') {
           ctx.fillStyle = e.color;
           ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
@@ -2457,6 +2613,24 @@
             ctx.globalAlpha = 0.3 * (e.shield / e.maxShield);
             ctx.strokeStyle = '#60a5fa'; ctx.lineWidth = 3;
             ctx.beginPath(); ctx.arc(x, y, r + 6, 0, Math.PI * 2); ctx.stroke();
+          }
+          // Aura ring (Transformer)
+          if (e.aura) {
+            ctx.globalAlpha = 0.1;
+            ctx.strokeStyle = e.color; ctx.lineWidth = 2;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath(); ctx.arc(x, y, e.auraRange || 200, 0, Math.PI * 2); ctx.stroke();
+            ctx.setLineDash([]);
+          }
+          // Magnetic pull arcs (Inductor)
+          if (e.magneticPull) {
+            ctx.globalAlpha = 0.15; ctx.strokeStyle = e.color; ctx.lineWidth = 1.5;
+            const t = btElapsed * 2;
+            for (let ring = 1; ring <= 3; ring++) {
+              const rr = r + 10 + ring * 12;
+              ctx.beginPath(); ctx.arc(x, y, rr, -0.4 + t, 0.4 + t); ctx.stroke();
+              ctx.beginPath(); ctx.arc(x, y, rr, Math.PI - 0.4 + t, Math.PI + 0.4 + t); ctx.stroke();
+            }
           }
           // Orbital orbs
           ctx.globalAlpha = e.alive ? 1 : 0.3;
@@ -2469,14 +2643,23 @@
             ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
           }
         } else {
-          // Triangle player
-          const aim = btEnemy && e === btPlayer ? Math.atan2(btEnemy.y - y, btEnemy.x - x) : (btPlayer ? Math.atan2(btPlayer.y - y, btPlayer.x - x) : 0);
+          // Triangle player (resistor / repeater / oscillator / amplifier)
           ctx.save(); ctx.translate(x, y); ctx.rotate(aim);
           ctx.fillStyle = e.color;
-          ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(-r * 0.7, -r * 0.7); ctx.lineTo(-r * 0.7, r * 0.7); ctx.closePath(); ctx.fill();
+          if (e.className === 'oscillator') {
+            // Wider triangle for oscillator
+            ctx.beginPath(); ctx.moveTo(r * 1.1, 0); ctx.lineTo(-r * 0.6, -r * 0.85); ctx.lineTo(-r * 0.6, r * 0.85); ctx.closePath(); ctx.fill();
+            ctx.globalAlpha = 0.5; ctx.fillRect(r * 0.2, r * 0.4, r * 0.5, 3); ctx.fillRect(r * 0.2, -r * 0.4 - 3, r * 0.5, 3);
+          } else if (e.className === 'amplifier') {
+            // Amplifier with barrel
+            ctx.beginPath(); ctx.moveTo(r * 1.2, 0); ctx.lineTo(-r * 0.7, -r * 0.75); ctx.lineTo(-r * 0.7, r * 0.75); ctx.closePath(); ctx.fill();
+            ctx.globalAlpha = 0.5; ctx.fillRect(r * 0.3, -2.5, r * 0.7, 5);
+          } else {
+            ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(-r * 0.7, -r * 0.7); ctx.lineTo(-r * 0.7, r * 0.7); ctx.closePath(); ctx.fill();
+          }
           ctx.restore();
-          // Shield ring (for transformer etc without orbit but with shield)
-          if (e.maxShield > 0 && e.attackType !== 'orbit') {
+          // Shield ring
+          if (e.maxShield > 0) {
             ctx.globalAlpha = 0.3 * (e.shield / e.maxShield);
             ctx.strokeStyle = '#60a5fa'; ctx.lineWidth = 2;
             ctx.beginPath(); ctx.arc(x, y, r + 5, 0, Math.PI * 2); ctx.stroke();

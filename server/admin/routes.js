@@ -14,7 +14,7 @@ const adminAuth = require('./auth');
  * @param {{ io: Server, getGame: Function, resetGame: Function, chatService: ChatService }} [opts]
  */
 function createAdminRouter(getEventEngine, marketDataService, opts = {}) {
-  const { io, getGame, resetGame, chatService, userDataStore } = opts;
+  const { io, getGame, resetGame, chatService, userDataStore, dailyRecords } = opts;
   const router = express.Router();
   router.use(express.json());
   router.use(adminAuth);
@@ -300,6 +300,17 @@ function createAdminRouter(getEventEngine, marketDataService, opts = {}) {
       },
       playerRadius: C.PLAYER_RADIUS,
     });
+  });
+
+  // ── 일일 최고기록 ──
+
+  // GET /api/admin/daily-records — TOP 50 조회
+  router.get('/daily-records', (req, res) => {
+    if (!dailyRecords) {
+      return res.json({ records: [], total: 0 });
+    }
+    const records = dailyRecords.getTop(50);
+    res.json({ records, total: records.length });
   });
 
   return router;

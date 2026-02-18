@@ -106,7 +106,7 @@ const resetGame = (mapId) => {
 app.use('/api/admin', createAdminRouter(
   () => game ? game.eventEngine : null,
   marketDataService,
-  { io, getGame, resetGame, chatService, userDataStore }
+  { io, getGame, resetGame, chatService, userDataStore, dailyRecords }
 ));
 
 // ── Admin 패널 페이지 ──
@@ -253,7 +253,7 @@ io.on('connection', (socket) => {
         dailyRecords.submit(player.name, player.team, player.score || 0, player.kills || 0, player.className || 'resistor');
       }
     }
-    socket.emit('daily_records', dailyRecords.getTop10());
+    socket.emit('daily_records', dailyRecords.getTop(50));
   });
 
   // 맵 변경 요청 (모든 플레이어가 퇴장 후 새 맵으로)
@@ -403,6 +403,16 @@ setInterval(() => {
   io.emit('chat:message', msg);
   lastBotChatTime = now;
 }, 30000); // 30초마다 체크
+
+// ── 살아있는 플레이어 기록 주기적 제출 (30초마다) ──
+setInterval(() => {
+  if (!game) return;
+  for (const p of game.players.values()) {
+    if (!p.isBot && p.alive && p.score > 0) {
+      dailyRecords.submit(p.name, p.team, p.score, p.kills || 0, p.className || 'resistor');
+    }
+  }
+}, 30000);
 
 // ── 스냅샷 브로드캐스트 (20Hz) ──
 setInterval(() => {

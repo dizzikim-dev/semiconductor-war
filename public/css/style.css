@@ -663,7 +663,16 @@ body {
   margin-bottom: 6px;
   letter-spacing: 1px;
 }
-.daily-records-list { display: flex; flex-direction: column; gap: 2px; }
+.daily-records-list {
+  display: flex; flex-direction: column; gap: 2px;
+  max-height: 220px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #2a3a4e transparent;
+}
+.daily-records-list::-webkit-scrollbar { width: 4px; }
+.daily-records-list::-webkit-scrollbar-track { background: transparent; }
+.daily-records-list::-webkit-scrollbar-thumb { background: #2a3a4e; border-radius: 2px; }
 .daily-record-row {
   display: flex; justify-content: space-between; align-items: center;
   padding: 3px 6px;
@@ -675,28 +684,6 @@ body {
 .daily-record-row.rank-1 { background: rgba(255, 215, 0, 0.08); color: #ffd700; font-weight: bold; }
 .daily-record-row.rank-2 { background: rgba(200, 200, 200, 0.06); color: #c8c8c8; }
 .daily-record-row.rank-3 { background: rgba(205, 127, 50, 0.06); color: #cd7f32; }
-
-/* ─── 라운드 종료 ─── */
-#roundEndScreen {
-  position: fixed; inset: 0;
-  display: flex; align-items: center; justify-content: center;
-  background: rgba(10,14,23,0.9);
-  z-index: 60;
-}
-.round-end-container {
-  text-align: center;
-  max-width: 500px;
-}
-.round-end-container h2 {
-  font-family: 'Orbitron', sans-serif;
-  font-size: 2rem;
-  margin-bottom: 20px;
-}
-#roundStats {
-  margin-bottom: 24px;
-  font-size: 1rem;
-  line-height: 1.8;
-}
 
 /* ─── 진화 선택 오버레이 ─── */
 #evolveOverlay {

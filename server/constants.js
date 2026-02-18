@@ -343,9 +343,6 @@ const HAZARD_ZONE = {
   COLOR_ACTIVE: '#ff2040',   // 활성 색상 (적색)
 };
 
-// ─── 게임 라운드 ───
-const ROUND_DURATION = 5 * 60 * 1000; // 5분 (ms)
-
 // ─── 시장 데이터 (Market Data) ───
 // 환경변수 오버라이드 지원: 'true'/'false' 문자열 → boolean
 const envBool = (key, fallback) => {
@@ -484,7 +481,6 @@ module.exports = {
   CELL_OVERHEAT_CHARGE_RATE, CELL_OVERHEAT_DECAY_RATE, CELL_OVERHEAT_THRESHOLD,
   CELL_OVERHEAT_MIN_COOLDOWN, CELL_OVERHEAT_IDLE_DELAY,
   HAZARD_ZONE,
-  ROUND_DURATION,
   // Feature Flags
   FEATURE_FLAGS,
   // Market Data

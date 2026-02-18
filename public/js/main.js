@@ -241,10 +241,6 @@
   const deathInfo = document.getElementById('deathInfo');
   const respawnBtn = document.getElementById('respawnBtn');
   const homeBtn = document.getElementById('homeBtn');
-  const roundEndScreen = document.getElementById('roundEndScreen');
-  const roundResult = document.getElementById('roundResult');
-  const roundStats = document.getElementById('roundStats');
-  const continueBtn = document.getElementById('continueBtn');
   const canvas = document.getElementById('gameCanvas');
   const nameInput = document.getElementById('nameInput');
   const playBtn = document.getElementById('playBtn');
@@ -483,10 +479,6 @@
     socket.connect();
   });
 
-  // 라운드 종료 후 계속
-  continueBtn.addEventListener('click', () => {
-    roundEndScreen.classList.add('hidden');
-  });
 
   // ── 스냅샷 수신 ──
   let lastProcessedEvents = 0;
@@ -756,65 +748,7 @@
       statsSaveTimer = 0;
     }
 
-    // 라운드 종료 체크
-    if (lastState) {
-      const remaining = lastState.roundDuration - lastState.roundElapsed;
-      if (remaining <= 0 && remaining > -3000 && !roundEndShown) {
-        showRoundEnd(lastState);
-      }
-      if (remaining > 10000) {
-        roundEndShown = false;
-      }
-    }
-
     requestAnimationFrame(gameLoop);
-  }
-
-  let roundEndShown = false;
-
-  function showRoundEnd(state) {
-    if (roundEndShown) return;
-    roundEndShown = true;
-
-    const samScore = (state.territoryScore && state.territoryScore.samsung) || 0;
-    const skhScore = (state.territoryScore && state.territoryScore.skhynix) || 0;
-    const samKills = state.teamKills.samsung || 0;
-    const skhKills = state.teamKills.skhynix || 0;
-    const samCaptures = (state.teamCaptures && state.teamCaptures.samsung) || 0;
-    const skhCaptures = (state.teamCaptures && state.teamCaptures.skhynix) || 0;
-
-    let resultText, resultColor;
-    if (samScore > skhScore) {
-      resultText = 'SAMSUNG WINS!';
-      resultColor = '#1e64ff';
-    } else if (skhScore > samScore) {
-      resultText = 'SK HYNIX WINS!';
-      resultColor = '#ff3250';
-    } else if (samCaptures > skhCaptures) {
-      resultText = 'SAMSUNG WINS! (tiebreak: captures)';
-      resultColor = '#1e64ff';
-    } else if (skhCaptures > samCaptures) {
-      resultText = 'SK HYNIX WINS! (tiebreak: captures)';
-      resultColor = '#ff3250';
-    } else if (samKills > skhKills) {
-      resultText = 'SAMSUNG WINS! (tiebreak: kills)';
-      resultColor = '#1e64ff';
-    } else if (skhKills > samKills) {
-      resultText = 'SK HYNIX WINS! (tiebreak: kills)';
-      resultColor = '#ff3250';
-    } else {
-      resultText = 'DRAW!';
-      resultColor = '#ffd700';
-    }
-
-    roundResult.textContent = resultText;
-    roundResult.style.color = resultColor;
-    roundStats.innerHTML = `
-      <div style="margin-bottom:8px;font-size:14px;color:#ffd700">TERRITORY SCORE</div>
-      <div><span style="color:#1e64ff">SAMSUNG</span>: ${samScore} pts | ${samCaptures} captures | ${samKills} kills</div>
-      <div><span style="color:#ff3250">SK HYNIX</span>: ${skhScore} pts | ${skhCaptures} captures | ${skhKills} kills</div>
-    `;
-    roundEndScreen.classList.remove('hidden');
   }
 
   // ── 모바일 버튼 핸들러 ──

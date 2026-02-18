@@ -40,7 +40,7 @@ class Game {
     this.bossDrones = [];
     this.bossRespawnTimer = C.BOSS_RESPAWN_DELAY; // 게임 시작 후 첫 보스도 30초 대기
     this.bossAlive = false;
-    this.roundStartTime = Date.now();
+    this.gameStartTime = Date.now();
     this.events = [];
 
     // ── Map 2 (Wafer Ring) zone state ──
@@ -132,47 +132,9 @@ class Game {
     this.pings = this.pings.filter(pg => now - pg.createdAt < 4000);
   }
 
-  resetRound() {
-    this.teamKills = { [C.TEAM.SAMSUNG]: 0, [C.TEAM.SKHYNIX]: 0 };
-    this.territoryScore = { [C.TEAM.SAMSUNG]: 0, [C.TEAM.SKHYNIX]: 0 };
-    this.teamCaptures = { [C.TEAM.SAMSUNG]: 0, [C.TEAM.SKHYNIX]: 0 };
-    this.teamBuffs = { [C.TEAM.SAMSUNG]: [], [C.TEAM.SKHYNIX]: [] };
-    for (const cell of this.cells) cell.reset();
-    this.roundStartTime = Date.now();
-    this.activeZoneId = null;
-    this.zoneTimer = 0;
-    this.zoneActiveTimer = 0;
-    this.zoneCleansed = false;
-    this.zoneCleanseTimer = 0;
-    this.bossSpawnedTimes = new Set();
-    this.bossBullets = [];
-    this.bossDrones = [];
-    this.bossRespawnTimer = C.BOSS_RESPAWN_DELAY;
-    this.bossAlive = false;
-    // Admin Event System 리셋
-    this.eventEngine.reset();
-    this.eventZones = [];
-    this.globalModifiers = {};
-    this.activeNewsTickers = [];
-    this.hazardZones = [];
-    this.hazardSpawnTimer = 0;
-    this.neutralMobs = [];
-    this.neutralMobSpawnTimer = 0;
-    this._neutralRespawnQueue = [];
-    for (const p of this.players.values()) {
-      p.kills = 0;
-      p.deaths = 0;
-      p.respawn();
-    }
-  }
-
   update(dt) {
     const now = Date.now();
     this.events = [];
-
-    if (now - this.roundStartTime >= C.ROUND_DURATION) {
-      this.resetRound();
-    }
 
     // Spatial Hash 재구축 (매 틱) — _shType 태그로 엔티티 유형 식별
     this.spatialHash.clear();
@@ -2156,8 +2118,6 @@ class Game {
       events: this.events,
       activeZoneId: this.activeZoneId,
       zoneCleansed: this.zoneCleansed,
-      roundElapsed: Date.now() - this.roundStartTime,
-      roundDuration: C.ROUND_DURATION,
       // Admin Event System
       activeEvents: this.eventEngine.getSnapshotData(),
       eventZones: this.eventZones,
@@ -2232,8 +2192,8 @@ class Game {
 
   // ── 봇 AI (지능형: 장애물 회피, 자동 리스폰, 전술 이동) ──
   updateBots() {
-    // 게임 시작/라운드 리셋 후 첫 3초간 봇 AI 비활성화 (스폰 위치 유지)
-    if (Date.now() - this.roundStartTime < 3000) return;
+    // 게임 시작 후 첫 3초간 봇 AI 비활성화 (스폰 위치 유지)
+    if (Date.now() - this.gameStartTime < 3000) return;
 
     for (const p of this.players.values()) {
       if (!p.isBot) continue;
