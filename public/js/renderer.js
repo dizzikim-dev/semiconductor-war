@@ -2799,12 +2799,15 @@ const Renderer = (() => {
 
   // 파티클
   const spawnParticles = (worldX, worldY, color, count) => {
+    const dpr = window.devicePixelRatio || 1;
+    const hw = canvas.width / (2 * dpr);
+    const hh = canvas.height / (2 * dpr);
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = 50 + Math.random() * 150;
       particles.push({
-        x: worldX - camera.x + canvas.width / 2,
-        y: worldY - camera.y + canvas.height / 2,
+        x: worldX - camera.x + hw,
+        y: worldY - camera.y + hh,
         vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
         life: 0.5 + Math.random() * 0.5, maxLife: 1,
         color, size: 2 + Math.random() * 3,
@@ -2992,11 +2995,14 @@ const Renderer = (() => {
   // 미니맵
   const drawMinimap = (state, myId, mapW, mapH) => {
     const isMob = _isMobileDevice();
+    const dpr = window.devicePixelRatio || 1;
+    const cw = canvas.width / dpr;
+    const ch = canvas.height / dpr;
     const mmW = isMob ? 110 : 160;
     const mmH = Math.round(mmW * (mapH / mapW));
     // 모바일: 좌측 하단 구석에 딱 붙임, PC: 우하단
-    const mmX = isMob ? 4 : canvas.width - mmW - 12;
-    const mmY = canvas.height - mmH - (isMob ? 4 : 12);
+    const mmX = isMob ? 4 : cw - mmW - 12;
+    const mmY = ch - mmH - (isMob ? 4 : 12);
     const scaleX = mmW / mapW, scaleY = mmH / mapH;
 
     ctx.save();
@@ -3133,10 +3139,10 @@ const Renderer = (() => {
     }
 
     // 뷰포트
-    const vpX = mmX + (camera.x - canvas.width / 2) * scaleX;
-    const vpY = mmY + (camera.y - canvas.height / 2) * scaleY;
-    const vpW = canvas.width * scaleX;
-    const vpH = canvas.height * scaleY;
+    const vpX = mmX + (camera.x - cw / 2) * scaleX;
+    const vpY = mmY + (camera.y - ch / 2) * scaleY;
+    const vpW = cw * scaleX;
+    const vpH = ch * scaleY;
     ctx.strokeStyle = 'rgba(255,255,255,0.3)';
     ctx.lineWidth = 1;
     ctx.strokeRect(vpX, vpY, vpW, vpH);
@@ -3190,7 +3196,8 @@ const Renderer = (() => {
     ctx.lineWidth = thickness;
     ctx.shadowColor = screenGlow.color;
     ctx.shadowBlur = 30 * (1 - progress);
-    ctx.strokeRect(thickness / 2, thickness / 2, canvas.width - thickness, canvas.height - thickness);
+    const dpr = window.devicePixelRatio || 1;
+    ctx.strokeRect(thickness / 2, thickness / 2, canvas.width / dpr - thickness, canvas.height / dpr - thickness);
     ctx.restore();
   };
 
